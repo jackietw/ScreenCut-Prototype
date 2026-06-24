@@ -14,7 +14,8 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.library_dir = library_dir
         self.setWindowTitle("ScreenCut Capture")
-        self.setFixedSize(420, 250)
+        self.resize(450, 270)
+        self.setMinimumSize(450, 270)
         
         # Make window frameless
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
@@ -42,14 +43,14 @@ class MainWindow(QMainWindow):
             }
             QTabBar::tab:selected { 
                 color: #ffffff; 
-                border-bottom: 2px solid #1976d2; 
+                border-bottom: 2px solid #246bb2; 
             }
             #CaptureButton { 
                 background-color: #d32f2f; 
                 color: white; 
                 font-weight: bold; 
                 font-size: 18px; 
-                border-radius: 45px; /* Perfect circle for 90x90 */
+                border-radius: 50px; /* Perfect circle for 100x100 */
             }
             #CaptureButton:hover { background-color: #f44336; }
             #BottomBar {
@@ -99,8 +100,7 @@ class MainWindow(QMainWindow):
         
         # Video Tab
         tab_video = QWidget()
-        tab_video_layout = QVBoxLayout(tab_video)
-        tab_video_layout.addWidget(QLabel("Video Recording coming soon."))
+        self.setup_video_tab(tab_video)
         self.tabs.addTab(tab_video, "Video")
         
         self.tabs.setCurrentIndex(0)
@@ -113,14 +113,26 @@ class MainWindow(QMainWindow):
         bottom_layout = QHBoxLayout(bottom_bar)
         bottom_layout.setContentsMargins(15, 0, 15, 0)
         
-        lbl_presets = QLabel("⚙ Preference(X)")
-        lbl_editor = QLabel("📝 Open Editor(X)")
-        lbl_presets.setCursor(Qt.CursorShape.PointingHandCursor)
-        lbl_editor.setCursor(Qt.CursorShape.PointingHandCursor)
+        from ui.icon_utils import create_svg_icon, SVG_PREF, SVG_EDITOR
+        from PySide6.QtCore import QSize
         
-        bottom_layout.addWidget(lbl_presets)
+        btn_presets = QPushButton("Preference")
+        btn_presets.setIcon(create_svg_icon(SVG_PREF))
+        btn_presets.setIconSize(QSize(18, 18))
+        btn_presets.setStyleSheet("color: #aaaaaa; font-size: 14px; background: transparent; border: none; text-align: left;")
+        btn_presets.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_presets.clicked.connect(self.open_preferences)
+        
+        btn_editor = QPushButton("Open Editor(X)")
+        btn_editor.setIcon(create_svg_icon(SVG_EDITOR))
+        btn_editor.setIconSize(QSize(18, 18))
+        btn_editor.setStyleSheet("color: #aaaaaa; font-size: 14px; background: transparent; border: none; text-align: left;")
+        btn_editor.setCursor(Qt.CursorShape.PointingHandCursor)
+        # TODO: Implement editor functionality
+        
+        bottom_layout.addWidget(btn_presets)
         bottom_layout.addStretch()
-        bottom_layout.addWidget(lbl_editor)
+        bottom_layout.addWidget(btn_editor)
         
         main_layout.addWidget(bottom_bar)
         
@@ -135,13 +147,54 @@ class MainWindow(QMainWindow):
         
         self.overlay = None
 
+    def open_preferences(self):
+        from ui.preferences_window import PreferencesWindow
+        prefs = PreferencesWindow(self)
+        prefs.exec()
+
+    def setup_video_tab(self, tab):
+        from config import load_config
+        config_data = load_config()
+        toggles_config = config_data.get("toggles", {})
+        
+        layout = QHBoxLayout(tab)
+        layout.setContentsMargins(20, 15, 20, 15)
+        
+        settings_layout = QVBoxLayout()
+        settings_layout.setSpacing(15)
+        
+        self.add_setting_row(settings_layout, "Capture Cursor (Video)", toggles_config.get("Capture Cursor (Video)", False), has_details=True)
+        self.add_setting_row(settings_layout, "5 Second Delay (Video)", toggles_config.get("5 Second Delay (Video)", False))
+        
+        settings_layout.addStretch()
+        layout.addLayout(settings_layout, stretch=2)
+        
+        capture_layout = QVBoxLayout()
+        
+        self.record_btn = QPushButton("Record")
+        self.record_btn.setObjectName("CaptureButton")
+        self.record_btn.setFixedSize(100, 100)
+        self.record_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.record_btn.clicked.connect(self.start_video_capture)
+        
+        lbl_hotkey = QLabel("Hot Key")
+        lbl_hotkey.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lbl_hotkey.setStyleSheet("color: #888888; font-size: 13px; margin-top: 5px;")
+
+        capture_layout.addStretch()
+        capture_layout.addWidget(self.record_btn, alignment=Qt.AlignmentFlag.AlignCenter)
+        capture_layout.addWidget(lbl_hotkey, alignment=Qt.AlignmentFlag.AlignCenter)
+        capture_layout.addStretch()
+        
+        layout.addLayout(capture_layout, stretch=1)
+
     def setup_image_tab(self, tab):
         from config import load_config
         config_data = load_config()
         toggles_config = config_data.get("toggles", {})
         
         layout = QHBoxLayout(tab)
-        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setContentsMargins(20, 15, 20, 15)
         
         # Left side: Settings with Toggles
         settings_layout = QVBoxLayout()
@@ -161,11 +214,11 @@ class MainWindow(QMainWindow):
         
         self.capture_btn = QPushButton("Capture")
         self.capture_btn.setObjectName("CaptureButton")
-        self.capture_btn.setFixedSize(90, 90)
+        self.capture_btn.setFixedSize(100, 100)
         self.capture_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.capture_btn.clicked.connect(self.start_capture)
         
-        lbl_hotkey = QLabel("Quick Capture")
+        lbl_hotkey = QLabel("Hot Key")
         lbl_hotkey.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lbl_hotkey.setStyleSheet("color: #888888; font-size: 13px; margin-top: 5px;")
         
@@ -176,7 +229,7 @@ class MainWindow(QMainWindow):
         
         layout.addLayout(capture_layout, stretch=1)
 
-    def add_setting_row(self, layout, label_text, is_checked=False):
+    def add_setting_row(self, layout, label_text, is_checked=False, has_details=False):
         row = QHBoxLayout()
         lbl = QLabel(label_text)
         from ui.toggle_switch import ToggleSwitch
@@ -188,8 +241,43 @@ class MainWindow(QMainWindow):
         
         row.addWidget(lbl)
         row.addStretch()
-        row.addWidget(toggle)
+        
+        right_container = QWidget()
+        right_container.setFixedWidth(70)
+        rc_layout = QHBoxLayout(right_container)
+        rc_layout.setContentsMargins(0, 0, 0, 0)
+        rc_layout.setSpacing(5)
+        
+        rc_layout.addWidget(toggle)
+        
+        if has_details:
+            from ui.icon_utils import create_svg_icon, SVG_MORE
+            from PySide6.QtCore import QSize
+            btn_details = QPushButton()
+            btn_details.setIcon(create_svg_icon(SVG_MORE))
+            btn_details.setIconSize(QSize(20, 20))
+            btn_details.setFixedSize(24, 24)
+            btn_details.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn_details.setStyleSheet("background: transparent; border: none;")
+            btn_details.clicked.connect(self.show_cursor_settings)
+            rc_layout.addWidget(btn_details)
+        else:
+            spacer = QWidget()
+            spacer.setFixedSize(20, 20)
+            rc_layout.addWidget(spacer)
+            
+        row.addWidget(right_container)
         layout.addLayout(row)
+
+    def show_cursor_settings(self):
+        btn = self.sender()
+        if not hasattr(self, 'cursor_popup') or self.cursor_popup is None:
+            from ui.cursor_settings_popup import CursorSettingsPopup
+            self.cursor_popup = CursorSettingsPopup(self)
+            
+        pos = btn.mapToGlobal(btn.rect().topRight())
+        self.cursor_popup.move(pos.x() + 5, pos.y() - 20)
+        self.cursor_popup.show()
 
     def save_toggle_state(self, label_text, state):
         from config import load_config, save_config
@@ -216,18 +304,42 @@ class MainWindow(QMainWindow):
         
         if has_delay:
             self.countdown = CountdownWindow(5)
-            self.countdown.finished.connect(self._do_overlay)
+            self.countdown.finished.connect(lambda: self._do_overlay(is_video=False))
             self.countdown.show()
         else:
             from PySide6.QtCore import QTimer
-            QTimer.singleShot(200, self._do_overlay)
+            QTimer.singleShot(200, lambda: self._do_overlay(is_video=False))
+            
+    def start_video_capture(self):
+        self.hide()
+        capture_cursor = self.toggles.get("Capture Cursor (Video)", None)
+        self._has_cursor = capture_cursor.isChecked() if capture_cursor else False
         
-    def _do_overlay(self):
-        self.overlay = OverlayWindow(self.library_dir, self._has_cursor, self._is_scroll)
+        delay_toggle = self.toggles.get("5 Second Delay (Video)", None)
+        has_delay = delay_toggle.isChecked() if delay_toggle else False
+        
+        self._is_scroll = False
+        
+        if has_delay:
+            self.countdown = CountdownWindow(5)
+            self.countdown.finished.connect(lambda: self._do_overlay(is_video=True))
+            self.countdown.show()
+        else:
+            from PySide6.QtCore import QTimer
+            QTimer.singleShot(200, lambda: self._do_overlay(is_video=True))
+        
+    def _do_overlay(self, is_video=False):
+        self.overlay = OverlayWindow(self.library_dir, self._has_cursor, self._is_scroll, is_video)
+        self.overlay.capture_finished.connect(self.show_after_capture)
         self.overlay.show()
         self.overlay.activateWindow()
         self.overlay.raise_()
         self.overlay.setFocus()
+
+    def show_after_capture(self):
+        self.show()
+        self.activateWindow()
+        self.raise_()
 
     # --- Window Dragging Logic ---
     def mousePressEvent(self, event):

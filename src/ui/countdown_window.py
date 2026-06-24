@@ -68,4 +68,5 @@ class CountdownWindow(QWidget):
         if event.button() == Qt.MouseButton.LeftButton:
             self.timer.stop()
             self.close()
-            print("Countdown cancelled by user.")
+            import logging
+            logging.debug("Countdown cancelled by user.")

@@ -10,7 +10,7 @@ from PySide6.QtGui import QPainter, QColor, QPen, QBrush
 class ToggleSwitch(QCheckBox):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedSize(40, 22)
+        self.setFixedSize(36, 20)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._position = 3
         
@@ -32,7 +32,7 @@ class ToggleSwitch(QCheckBox):
     def setup_animation(self, value):
         self.animation.stop()
         if value:
-            self.animation.setEndValue(self.width() - 19)
+            self.animation.setEndValue(19)
         else:
             self.animation.setEndValue(3)
         self.animation.start()
@@ -45,13 +45,14 @@ class ToggleSwitch(QCheckBox):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         
         # Draw background
-        bg_color = QColor("#1976d2") if self.isChecked() else QColor("#5a5a5a")
+        bg_color = QColor("#246bb2") if self.isChecked() else QColor("#5a5a5a")
         painter.setBrush(QBrush(bg_color))
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawRoundedRect(0, 0, self.width(), self.height(), self.height() / 2, self.height() / 2)
         
         # Draw knob
-        painter.setBrush(QBrush(QColor("#ffffff")))
+        knob_color = QColor("#ffffff") if self.isChecked() else QColor("#c0c0c0")
+        painter.setBrush(QBrush(knob_color))
         knob_radius = self.height() - 6
         painter.drawEllipse(self._position, 3, knob_radius, knob_radius)
         

@@ -5,13 +5,15 @@
 
 from PySide6.QtWidgets import QWidget, QApplication, QPushButton, QHBoxLayout, QVBoxLayout, QLabel
 from PySide6.QtCore import Qt, QRect, QPoint, QSize, Signal
-from PySide6.QtGui import QPainter, QColor, QPen, QImage, QCursor, QShortcut, QKeySequence
+from PySide6.QtGui import QPainter, QColor, QPen, QBrush, QImage, QCursor, QShortcut, QKeySequence, QFontMetrics, QFont
 import mss
 import os
 import time
 import sys
 import ctypes
 from ctypes import wintypes
+from ui.ready_to_record_panel import ReadyToRecordPanel
+from ui.video_toolbar import VideoToolbar
 
 try:
     import win32gui
@@ -27,14 +29,22 @@ except ImportError:
 class FloatingToolbar(QWidget):
     def __init__(self, parent, on_done, on_cancel):
         super().__init__(parent)
-        self.setWindowFlags(Qt.WindowType.ToolTip | Qt.WindowType.FramelessWindowHint)
+        self.setWindowFlags(Qt.WindowType.ToolTip | Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        
+        # Exclude from screen capture
+        try:
+            hwnd = int(self.winId())
+            ctypes.windll.user32.SetWindowDisplayAffinity(hwnd, 0x11)
+        except:
+            pass
         
         layout = QHBoxLayout(self)
         layout.setContentsMargins(5, 5, 5, 5)
         
         bg = QWidget()
-        bg.setStyleSheet("background-color: #2b2b2b; border: 1px solid #555555; border-radius: 6px;")
+        bg.setObjectName("bg_widget")
+        bg.setStyleSheet("#bg_widget { background-color: #2b2b2b; border: 1px solid #555555; border-radius: 6px; }")
         bg_layout = QHBoxLayout(bg)
         bg_layout.setContentsMargins(8, 4, 8, 4)
         
@@ -42,14 +52,21 @@ class FloatingToolbar(QWidget):
         self.lbl_size.setStyleSheet("color: #aaaaaa; font-family: monospace; margin-right: 10px;")
         bg_layout.addWidget(self.lbl_size)
         
-        btn_done = QPushButton("✔")
+        from ui.icon_utils import create_svg_icon, SVG_DONE, SVG_CANCEL
+        
+        btn_done = QPushButton()
+        btn_done.setIcon(create_svg_icon(SVG_DONE))
+        btn_done.setIconSize(QSize(20, 20))
+        btn_done.setStyleSheet("background-color: #246bb2; padding: 6px 15px; border-radius: 3px; border: none;")
+        btn_cancel = QPushButton()
+        btn_cancel.setIcon(create_svg_icon(SVG_CANCEL))
+        btn_cancel.setIconSize(QSize(20, 20))
+            
         btn_done.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_done.setStyleSheet("background-color: #1976d2; color: white; padding: 6px 20px; border-radius: 3px; font-weight: bold;")
         btn_done.clicked.connect(on_done)
         
-        btn_cancel = QPushButton("✕")
         btn_cancel.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_cancel.setStyleSheet("background-color: #4a4a4a; color: white; padding: 6px 15px; border-radius: 3px; font-weight: bold;")
+        btn_cancel.setStyleSheet("background-color: #4a4a4a; padding: 6px 15px; border-radius: 3px; border: none;")
         btn_cancel.clicked.connect(on_cancel)
         
         bg_layout.addWidget(btn_done)
@@ -60,19 +77,23 @@ class FloatingToolbar(QWidget):
     def update_size(self, width, height):
         self.lbl_size.setText(f"{width} x {height}")
         self.adjustSize()
-        self.adjustSize()
 
 class OverlayWindow(QWidget):
+    capture_finished = Signal()
+    
     class State:
         SNAPPING = 0
         DRAWING = 1
         ADJUSTING = 2
+        RECORDING = 3
 
-    def __init__(self, library_dir, capture_cursor=False, is_scroll=False):
+    def __init__(self, library_dir, capture_cursor=False, is_scroll=False, is_video=False):
         super().__init__()
         self.library_dir = library_dir
         self.is_scroll = is_scroll
+        self.is_video = is_video
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         
@@ -91,10 +112,11 @@ class OverlayWindow(QWidget):
             
         # Handle DPI scaling
         self.ratio = self.screen().devicePixelRatio()
-        self.bg_image.setDevicePixelRatio(self.ratio)
-        
+        if hasattr(self, 'bg_image'):
+            self.bg_image.setDevicePixelRatio(self.ratio)
+            
         # Draw cursor if requested
-        if capture_cursor:
+        if capture_cursor and hasattr(self, 'bg_image'):
             self._draw_cursor_on_bg()
             
         self.setGeometry(int(monitor["left"] / self.ratio), 
@@ -151,8 +173,28 @@ class OverlayWindow(QWidget):
         self.active_handle = -1
         self.handle_size = 12
         
-        self.toolbar = FloatingToolbar(self, self.on_done, self.on_cancel)
+        if self.is_video:
+            self.toolbar = VideoToolbar(self)
+            self.toolbar.start_requested.connect(self.on_done)
+            self.toolbar.cancel_requested.connect(self.on_cancel)
+        else:
+            self.toolbar = FloatingToolbar(self, self.on_done, self.on_cancel)
         self.toolbar.hide()
+        
+        self.ready_panel = None
+        if self.is_video:
+            self.ready_panel = ReadyToRecordPanel(self)
+            self.ready_panel.hide()
+            
+            # Connect toolbar toggles to update the panel
+            self.toolbar.cursor_toggled.connect(self.ready_panel.update_cursor_status)
+            self.toolbar.audio_toggled.connect(self.ready_panel.update_audio_status)
+            
+            # Pass audio device name from config
+            from config import load_config
+            cfg = load_config()
+            audio_device = cfg.get("audio_source", "System Default")
+            self.ready_panel.set_audio_device_name(audio_device)
         
         self.is_mouse_down = False
         self.current_mouse_pos = QPoint(-1000, -1000)
@@ -263,13 +305,32 @@ class OverlayWindow(QWidget):
         self.toolbar.move(x, y)
         self.toolbar.show()
         self.toolbar.raise_()
+        
+        if hasattr(self, 'ready_panel') and self.ready_panel:
+            self.ready_panel.adjustSize()
+            pw = self.ready_panel.width()
+            ph = self.ready_panel.height()
+            px = r.center().x() - pw // 2
+            py = r.center().y() - ph // 2
+            
+            # Ensure it fits inside the selected region if possible, else just center it
+            if px < r.left(): px = r.left() + 5
+            if py < r.top(): py = r.top() + 5
+            
+            self.ready_panel.move(px, py)
+            self.ready_panel.show()
+            self.ready_panel.raise_()
 
     def paintEvent(self, event):
-        from PySide6.QtGui import QRegion
+        from PySide6.QtGui import QRegion, QPainter
         painter = QPainter(self)
         
         if hasattr(self, 'bg_image'):
             painter.drawImage(0, 0, self.bg_image)
+        else:
+            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
+            painter.fillRect(self.rect(), Qt.GlobalColor.transparent)
+            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
             
         draw_rect = QRect()
         pen_color = QColor(255, 165, 0)
@@ -288,19 +349,29 @@ class OverlayWindow(QWidget):
         elif self.state == self.State.ADJUSTING:
             draw_rect = self.selected_rect
             pen_color = QColor(255, 200, 0)
+        elif self.state == self.State.RECORDING:
+            # In RECORDING state, draw nothing - the overlay should be invisible
+            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
+            painter.fillRect(self.rect(), Qt.GlobalColor.transparent)
+            painter.end()
+            return
             
         # Draw the dim overlay using clipping to create a "hole"
-        dim_region = QRegion(self.rect())
-        if not draw_rect.isEmpty():
-            dim_region = dim_region.subtracted(QRegion(draw_rect))
-            
-        painter.setClipRegion(dim_region)
-        painter.fillRect(self.rect(), QColor(0, 0, 0, 120))
-        painter.setClipping(False) # Turn off clipping to draw the borders and handles
+        if self.state != self.State.RECORDING:
+            dim_region = QRegion(self.rect())
+            if not draw_rect.isEmpty():
+                dim_region = dim_region.subtracted(QRegion(draw_rect))
+                
+            painter.setClipRegion(dim_region)
+            painter.fillRect(self.rect(), QColor(0, 0, 0, 120))
+            painter.setClipping(False) # Turn off clipping to draw the borders and handles
             
         if not draw_rect.isEmpty():
             painter.setPen(QPen(pen_color, 2, Qt.PenStyle.SolidLine))
             painter.drawRect(draw_rect)
+            
+            if self.state != self.State.RECORDING:
+                painter.fillRect(draw_rect, QColor(0, 0, 0, 1))
             
             if self.state == self.State.ADJUSTING:
                 painter.setBrush(QColor(255, 255, 255))
@@ -308,7 +379,8 @@ class OverlayWindow(QWidget):
                 for h in self.handles:
                     painter.drawEllipse(h)
                     
-        self._draw_magnifier(painter, draw_rect)
+        if hasattr(self, 'bg_image'):
+            self._draw_magnifier(painter, draw_rect)
 
     def _draw_magnifier(self, painter, draw_rect):
         if not hasattr(self, 'current_mouse_pos') or self.current_mouse_pos.x() < -500:
@@ -510,25 +582,66 @@ class OverlayWindow(QWidget):
     def on_done(self):
         rect = self.selected_rect
             
-        self.toolbar.hide()
-        self.close()
-        QApplication.processEvents()
-        
         if rect.width() > 0 and rect.height() > 0:
-            # Convert logical rect back to physical rect to crop from the high-res physical bg_image
             phys_rect = QRect(int(rect.left() * self.ratio), 
                               int(rect.top() * self.ratio), 
                               int(rect.width() * self.ratio), 
                               int(rect.height() * self.ratio))
             
-            if hasattr(self, 'is_scroll') and self.is_scroll:
-                from core.scroll_capture import ScrollCaptureManager
-                self.scroll_manager = ScrollCaptureManager(phys_rect, self.library_dir)
-                self.scroll_manager.show()
+            if hasattr(self, 'is_video') and self.is_video:
+                self.state = self.State.RECORDING
+                if hasattr(self, 'bg_image'):
+                    del self.bg_image
+                
+                settings = None
+                if hasattr(self, 'ready_panel') and self.ready_panel:
+                    settings = {
+                        "capture_cursor": self.toolbar.btn_cursor.isChecked(),
+                        "audio": self.toolbar.btn_audio.isChecked()
+                    }
+                    self.ready_panel.hide()
+                
+                self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+                import win32gui, win32con
+                import ctypes
+                hwnd = int(self.winId())
+                exStyle = win32gui.GetWindowLong(hwnd, win32con.GWL_EXSTYLE)
+                win32gui.SetWindowLong(hwnd, win32con.GWL_EXSTYLE, exStyle | win32con.WS_EX_TRANSPARENT | win32con.WS_EX_LAYERED)
+                # Also exclude this window from screen capture
+                try:
+                    ctypes.windll.user32.SetWindowDisplayAffinity(hwnd, 0x11)
+                except Exception:
+                    pass
+                
+                from core.video_capture import VideoCaptureManager
+                cw_pos = self.toolbar.pos()
+                self.__class__.video_manager = VideoCaptureManager(
+                    phys_rect, self.library_dir, cw_pos.x(), cw_pos.y(),
+                    override_settings=settings, existing_toolbar=self.toolbar, logical_rect=rect
+                )
+                # When recording finishes or is cancelled, close the overlay and emit finished signal
+                self.__class__.video_manager.thread.finished_signal.connect(lambda path: self.close())
+                self.__class__.video_manager.thread.finished_signal.connect(lambda path: self.capture_finished.emit())
+                
+                self.update()
+                
+                # Ensure toolbar stays on top of the overlay
+                self.__class__.video_manager.toolbar.raise_()
+                self.__class__.video_manager.toolbar.activateWindow()
+                return
             else:
-                cropped_image = self.bg_image.copy(phys_rect)
+                self.toolbar.hide()
+                self.close()
+                QApplication.processEvents()
+                
+                if hasattr(self, 'is_scroll') and self.is_scroll:
+                    from core.scroll_capture import ScrollCaptureManager
+                    self.scroll_manager = ScrollCaptureManager(phys_rect, self.library_dir)
+                    self.scroll_manager.show()
+                else:
+                    cropped_image = self.bg_image.copy(phys_rect)
             
-            if not (hasattr(self, 'is_scroll') and self.is_scroll):
+            if not (hasattr(self, 'is_scroll') and self.is_scroll) and not (hasattr(self, 'is_video') and self.is_video):
                 # Reset device pixel ratio on the cropped image before saving so it saves at full physical resolution
                 cropped_image.setDevicePixelRatio(1.0)
                 
@@ -539,8 +652,21 @@ class OverlayWindow(QWidget):
                 
                 clipboard = QApplication.clipboard()
                 clipboard.setImage(cropped_image)
-                print(f"Captured: {filepath} and copied to clipboard.")
+                from ui.toast_notification import ToastNotification
+                self.__class__._active_toast = ToastNotification(f"Image saved successfully:\n{filename}")
+                self.__class__._active_toast.show_toast()
+                
+            if not (hasattr(self, 'is_scroll') and self.is_scroll):
+                self.capture_finished.emit()
                 
     def on_cancel(self):
+        if self.state == self.State.RECORDING:
+            # cancel_requested is already connected to VideoCaptureManager.cancel_capture
+            # Do NOT re-emit here or it will cause an infinite loop
+            return
+            
         self.toolbar.hide()
+        if hasattr(self, 'ready_panel') and self.ready_panel:
+            self.ready_panel.hide()
         self.close()
+        self.capture_finished.emit()

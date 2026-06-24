@@ -304,7 +304,8 @@ class ScrollCaptureManager(QWidget):
             clipboard = QApplication.clipboard()
             clipboard.setImage(q_img_copy)
             
-            print(f"Scroll Capture saved: {filepath}")
+            import logging
+            logging.info("Scroll Capture saved: %s", filepath)
             
         if self.on_done_callback:
             self.on_done_callback()

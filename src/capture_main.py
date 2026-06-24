@@ -22,17 +22,33 @@ def get_documents_folder():
 
 def global_exception_handler(exc_type, exc_value, exc_tb):
     import traceback
-    from PySide6.QtWidgets import QMessageBox
+    import logging
     error_msg = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
+    # Always write to crash.log (legacy) and to the rotating log via logging
     with open("crash.log", "a") as f:
         f.write(error_msg + "\n")
-    print(error_msg)
-    QMessageBox.critical(None, "ScreenCut Error", f"An unexpected error occurred:\n\n{error_msg}")
+    logging.critical(error_msg)
+    # Only show dialog in debug mode
+    from config import is_debug_mode
+    if is_debug_mode():
+        from PySide6.QtWidgets import QMessageBox
+        QMessageBox.critical(None, "ScreenCut Error", f"An unexpected error occurred:\n\n{error_msg}")
 
 def main():
     import sys
+    from config import setup_logging
+    setup_logging()   # Must be first - configures logging for the whole app
     sys.excepthook = global_exception_handler
     app = QApplication(sys.argv)
+    
+    # Single Instance Check
+    from PySide6.QtCore import QSharedMemory
+    shared_mem = QSharedMemory("ScreenCut_Unique_Instance_Lock")
+    if not shared_mem.create(1):
+        from PySide6.QtWidgets import QMessageBox
+        # Create a temporary dummy widget to show the message box properly
+        QMessageBox.warning(None, "ScreenCut", "ScreenCut is already running in the background.\nPlease check your System Tray.")
+        sys.exit(0)
     
     # Keep application running when the main window is closed
     app.setQuitOnLastWindowClosed(False)
@@ -62,8 +78,13 @@ def main():
     
     tray_menu.addSeparator()
     
+    def force_quit():
+        tray_icon.hide()
+        # Forcefully terminate the application
+        os._exit(0)
+        
     quit_action = QAction("Quit", window)
-    quit_action.triggered.connect(app.quit)
+    quit_action.triggered.connect(force_quit)
     tray_menu.addAction(quit_action)
     
     tray_icon.setContextMenu(tray_menu)
@@ -75,7 +96,7 @@ def main():
     )
 
     window.show()
-    sys.exit(app.exec())
+    app.exec()
 
 if __name__ == "__main__":
     main()

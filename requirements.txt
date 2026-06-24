@@ -3,3 +3,6 @@ PySide6>=6.5.0
 pywin32==312
 opencv-python>=4.8.0
 numpy>=1.24.0
+imageio[ffmpeg]>=2.33.0
+sounddevice>=0.4.6
+soundfile>=0.12.1
