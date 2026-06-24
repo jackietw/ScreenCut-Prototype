@@ -3,11 +3,14 @@
 * SPDX-License-Identifier: LGPL-2.0-or-later
 '''
 
+import ctypes
+import ctypes.wintypes
 from PySide6.QtWidgets import QMainWindow, QPushButton, QVBoxLayout, QWidget, QHBoxLayout, QTabWidget, QLabel
 from PySide6.QtCore import Qt, QTimer
 from ui.overlay_window import OverlayWindow
 from ui.toggle_switch import ToggleSwitch
 from ui.countdown_window import CountdownWindow
+from ui.hotkey_label import HotkeyLabel
 
 class MainWindow(QMainWindow):
     def __init__(self, library_dir):
@@ -146,6 +149,9 @@ class MainWindow(QMainWindow):
         self.close_btn.raise_()
         
         self.overlay = None
+        self.HOTKEY_VIDEO_ID = 1
+        self.HOTKEY_IMAGE_ID = 2
+        self.register_hotkeys()
 
     def open_preferences(self):
         from ui.preferences_window import PreferencesWindow
@@ -177,9 +183,8 @@ class MainWindow(QMainWindow):
         self.record_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.record_btn.clicked.connect(self.start_video_capture)
         
-        lbl_hotkey = QLabel("Hot Key")
-        lbl_hotkey.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lbl_hotkey.setStyleSheet("color: #888888; font-size: 13px; margin-top: 5px;")
+        lbl_hotkey = HotkeyLabel("Ctrl+Shift+V", "video_hotkey")
+        lbl_hotkey.hotkey_changed.connect(self.update_hotkey)
 
         capture_layout.addStretch()
         capture_layout.addWidget(self.record_btn, alignment=Qt.AlignmentFlag.AlignCenter)
@@ -218,9 +223,8 @@ class MainWindow(QMainWindow):
         self.capture_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.capture_btn.clicked.connect(self.start_capture)
         
-        lbl_hotkey = QLabel("Hot Key")
-        lbl_hotkey.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lbl_hotkey.setStyleSheet("color: #888888; font-size: 13px; margin-top: 5px;")
+        lbl_hotkey = HotkeyLabel("Ctrl+Shift+P", "image_hotkey")
+        lbl_hotkey.hotkey_changed.connect(self.update_hotkey)
         
         capture_layout.addStretch()
         capture_layout.addWidget(self.capture_btn, alignment=Qt.AlignmentFlag.AlignCenter)
@@ -356,3 +360,41 @@ class MainWindow(QMainWindow):
         if hasattr(self, 'drag_pos'):
             del self.drag_pos
             event.accept()
+
+    def register_hotkeys(self):
+        from config import load_config
+        cfg = load_config()
+        hotkeys = cfg.get("hotkeys", {})
+        
+        # Default for Video: Ctrl+Shift+V
+        vk_video = hotkeys.get("video_hotkey", {}).get("vk", 0x56)  # 'V'
+        mods_video = hotkeys.get("video_hotkey", {}).get("modifiers", 6)  # MOD_SHIFT(4) | MOD_CONTROL(2)
+        if vk_video: ctypes.windll.user32.RegisterHotKey(int(self.winId()), self.HOTKEY_VIDEO_ID, mods_video, vk_video)
+            
+        # Default for Image: Ctrl+Shift+P
+        vk_image = hotkeys.get("image_hotkey", {}).get("vk", 0x50)  # 'P'
+        mods_image = hotkeys.get("image_hotkey", {}).get("modifiers", 6)  # MOD_SHIFT(4) | MOD_CONTROL(2)
+        if vk_image: ctypes.windll.user32.RegisterHotKey(int(self.winId()), self.HOTKEY_IMAGE_ID, mods_image, vk_image)
+
+    def update_hotkey(self, config_key, mods, vk):
+        hotkey_id = self.HOTKEY_VIDEO_ID if config_key == "video_hotkey" else self.HOTKEY_IMAGE_ID
+        ctypes.windll.user32.UnregisterHotKey(int(self.winId()), hotkey_id)
+        if vk:
+            ctypes.windll.user32.RegisterHotKey(int(self.winId()), hotkey_id, mods, vk)
+
+    def nativeEvent(self, eventType, message):
+        if eventType == b"windows_generic_MSG" or eventType == b"windows_dispatcher_MSG":
+            msg = ctypes.wintypes.MSG.from_address(message.__int__())
+            if msg.message == 0x0312: # WM_HOTKEY
+                if msg.wParam == self.HOTKEY_VIDEO_ID:
+                    self.start_video_capture()
+                    return True, 0
+                elif msg.wParam == self.HOTKEY_IMAGE_ID:
+                    self.start_capture()
+                    return True, 0
+        return super().nativeEvent(eventType, message)
+        
+    def closeEvent(self, event):
+        ctypes.windll.user32.UnregisterHotKey(int(self.winId()), self.HOTKEY_VIDEO_ID)
+        ctypes.windll.user32.UnregisterHotKey(int(self.winId()), self.HOTKEY_IMAGE_ID)
+        super().closeEvent(event)

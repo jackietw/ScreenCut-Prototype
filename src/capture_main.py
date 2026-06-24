@@ -65,6 +65,7 @@ def main():
     # Using a standard system icon as placeholder
     icon = window.style().standardIcon(window.style().StandardPixmap.SP_ComputerIcon)
     tray_icon.setIcon(icon)
+    tray_icon.setToolTip("ScreenCut")
     
     tray_menu = QMenu()
     
