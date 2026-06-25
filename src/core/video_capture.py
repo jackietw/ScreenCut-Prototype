@@ -11,8 +11,7 @@ import numpy as np
 import mss
 import imageio
 import cv2
-import win32gui
-import win32api
+from platforms import Platform
 from PySide6.QtCore import QThread, Signal, QObject, QTimer, Qt
 from PySide6.QtWidgets import QApplication
 from ui.video_toolbar import VideoToolbar
@@ -88,14 +87,11 @@ class VideoCaptureThread(QThread):
                 # Check Cursor State
                 if self.capture_cursor:
                     try:
-                        _, _, (cx, cy) = win32gui.GetCursorInfo()  # type: ignore
+                        cx, cy = Platform.get_cursor_pos()
                         # Translate to frame coordinates
                         fx = cx - monitor["left"]
                         fy = cy - monitor["top"]
-                        
-                        # with open(os.path.join(self.library_dir, "cursor_pos.log"), "a") as f:
-                        #     f.write(f"cx={cx}, cy={cy}, monitor={monitor}, fx={fx}, fy={fy}\n")
-                        
+
                         # Only draw if inside the frame
                         if 0 <= fx < monitor["width"] and 0 <= fy < monitor["height"]:
                             # Draw Highlight
@@ -103,27 +99,24 @@ class VideoCaptureThread(QThread):
                                 overlay = frame.copy()
                                 cv2.circle(overlay, (fx, fy), 20, self.hl_color, -1)
                                 cv2.addWeighted(overlay, 0.4, frame, 0.6, 0, frame)
-                                
+
                             # Track Clicks
                             if self.cl_enabled:
-                                state = win32api.GetAsyncKeyState(0x01)
-                                is_clicked = (state & 0x8000) != 0
+                                is_clicked = Platform.get_left_button_down()
                                 if is_clicked and not prev_clicked:
                                     click_animations.append({"pos": (fx, fy), "radius": 5})
                                 prev_clicked = is_clicked
-                                
+
                             # Draw Vector Cursor
                             cursor_poly = np.array([
-                                [fx, fy], [fx, fy+20], [fx+5, fy+15], 
-                                [fx+10, fy+25], [fx+12, fy+24], 
+                                [fx, fy], [fx, fy+20], [fx+5, fy+15],
+                                [fx+10, fy+25], [fx+12, fy+24],
                                 [fx+7, fy+14], [fx+15, fy+14]
                             ], np.int32)
                             cv2.fillPoly(frame, [cursor_poly], (0, 0, 0))
                             cv2.polylines(frame, [cursor_poly], True, (255, 255, 255), 1, cv2.LINE_AA)
-                    except Exception as e:
-                        import traceback
-                        # with open(os.path.join(self.library_dir, "cursor_error.log"), "a") as f:
-                        #     f.write(traceback.format_exc() + "\n")
+                    except Exception:
+                        pass
                 
                 # Draw Click Animations
                 if self.cl_enabled and click_animations:

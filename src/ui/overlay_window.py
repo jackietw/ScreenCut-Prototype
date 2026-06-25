@@ -11,20 +11,21 @@ import os
 import time
 import sys
 import ctypes
-from ctypes import wintypes
+from platforms import Platform
 from ui.ready_to_record_panel import ReadyToRecordPanel
 from ui.video_toolbar import VideoToolbar
 
-try:
-    import win32gui
-    import win32api
-    import win32con
-    HAS_WIN32 = True
-    dwmapi = ctypes.windll.dwmapi
-    DWMWA_EXTENDED_FRAME_BOUNDS = 9
-    DWMWA_CLOAKED = 14
-except ImportError:
-    HAS_WIN32 = False
+# Windows-only: DWM extended frame info
+if sys.platform == "win32":
+    try:
+        from ctypes import wintypes as _wintypes
+        _dwmapi = ctypes.windll.dwmapi
+        _DWMWA_EXTENDED_FRAME_BOUNDS = 9
+        _DWMWA_CLOAKED = 14
+    except Exception:
+        _dwmapi = None
+else:
+    _dwmapi = None
 
 class FloatingToolbar(QWidget):
     def __init__(self, parent, on_done, on_cancel):
@@ -33,11 +34,7 @@ class FloatingToolbar(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         
         # Exclude from screen capture
-        try:
-            hwnd = int(self.winId())
-            ctypes.windll.user32.SetWindowDisplayAffinity(hwnd, 0x11)
-        except:
-            pass
+        Platform.set_window_capture_excluded(int(self.winId()))
         
         layout = QHBoxLayout(self)
         layout.setContentsMargins(5, 5, 5, 5)
@@ -126,42 +123,19 @@ class OverlayWindow(QWidget):
 
         # 2. Cache all visible window rects at the moment of freeze
         self.window_rects = []
-        if HAS_WIN32:
-            my_hwnd = int(self.winId())
-            def enum_cb(hwnd, _):
-                if win32gui.IsWindowVisible(hwnd) and not win32gui.IsIconic(hwnd):
-                    if hwnd == my_hwnd:
-                        return True
-                    
-                    # Check if cloaked (invisible Windows 10/11 apps)
-                    cloaked = ctypes.c_int(0)
-                    dwmapi.DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, ctypes.byref(cloaked), ctypes.sizeof(cloaked))
-                    if cloaked.value != 0:
-                        return True
-                        
-                    rect = wintypes.RECT()
-                    res = dwmapi.DwmGetWindowAttribute(hwnd, DWMWA_EXTENDED_FRAME_BOUNDS, ctypes.byref(rect), ctypes.sizeof(rect))
-                    if res == 0:
-                        left, top, right, bottom = rect.left, rect.top, rect.right, rect.bottom
-                    else:
-                        left, top, right, bottom = win32gui.GetWindowRect(hwnd)
-                        
-                    if right > left and bottom > top:
-                        left -= self.screen_offset_x
-                        right -= self.screen_offset_x
-                        top -= self.screen_offset_y
-                        bottom -= self.screen_offset_y
-                        
-                        logical_rect = QRect(int(left / self.ratio), 
-                                             int(top / self.ratio), 
-                                             int((right - left) / self.ratio), 
-                                             int((bottom - top) / self.ratio))
-                        self.window_rects.append(logical_rect)
-                return True
-            try:
-                win32gui.EnumWindows(enum_cb, None)
-            except Exception:
-                pass
+        raw_rects = Platform.enum_visible_windows()
+        my_hwnd = int(self.winId())
+        for (l, t, r, b) in raw_rects:
+            if r > l and b > t:
+                l -= self.screen_offset_x
+                r -= self.screen_offset_x
+                t -= self.screen_offset_y
+                b -= self.screen_offset_y
+                logical_rect = QRect(
+                    int(l / self.ratio), int(t / self.ratio),
+                    int((r - l) / self.ratio), int((b - t) / self.ratio)
+                )
+                self.window_rects.append(logical_rect)
 
         self.state = self.State.SNAPPING
         self.start_point = QPoint()
@@ -325,7 +299,7 @@ class OverlayWindow(QWidget):
         from PySide6.QtGui import QRegion, QPainter
         painter = QPainter(self)
         
-        if hasattr(self, 'bg_image'):
+        if hasattr(self, 'bg_image') and self.state != self.State.RECORDING:
             painter.drawImage(0, 0, self.bg_image)
         else:
             painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
@@ -350,11 +324,8 @@ class OverlayWindow(QWidget):
             draw_rect = self.selected_rect
             pen_color = QColor(255, 200, 0)
         elif self.state == self.State.RECORDING:
-            # In RECORDING state, draw nothing - the overlay should be invisible
-            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
-            painter.fillRect(self.rect(), Qt.GlobalColor.transparent)
-            painter.end()
-            return
+            draw_rect = self.selected_rect
+            pen_color = QColor(255, 0, 0)
             
         # Draw the dim overlay using clipping to create a "hole"
         if self.state != self.State.RECORDING:
@@ -386,16 +357,16 @@ class OverlayWindow(QWidget):
         if not hasattr(self, 'current_mouse_pos') or self.current_mouse_pos.x() < -500:
             return
             
+        # Only draw crosshairs and magnifier if SNAPPING or DRAWING
+        if self.state not in (self.State.SNAPPING, self.State.DRAWING):
+            return
+            
         cx, cy = self.current_mouse_pos.x(), self.current_mouse_pos.y()
         
         # Draw full screen crosshairs
         painter.setPen(QPen(QColor(255, 255, 255, 150), 1, Qt.PenStyle.DashLine))
         painter.drawLine(0, cy, self.width(), cy)
         painter.drawLine(cx, 0, cx, self.height())
-        
-        # Only draw magnifier if SNAPPING or DRAWING
-        if self.state not in (self.State.SNAPPING, self.State.DRAWING):
-            return
             
         radius = 60
         zoom = 6
@@ -499,6 +470,8 @@ class OverlayWindow(QWidget):
                     else:
                         self.state = self.State.SNAPPING
                         self.toolbar.hide()
+                        if hasattr(self, 'ready_panel') and self.ready_panel:
+                            self.ready_panel.hide()
                         
         elif event.button() == Qt.MouseButton.RightButton:
             self.on_cancel()
@@ -519,6 +492,8 @@ class OverlayWindow(QWidget):
         elif self.state == self.State.ADJUSTING:
             if self.is_mouse_down and self.active_handle != -1:
                 self.toolbar.hide()
+                if hasattr(self, 'ready_panel') and self.ready_panel:
+                    self.ready_panel.hide()
                 p = event.pos()
                 r = self.selected_rect
                 
@@ -602,16 +577,9 @@ class OverlayWindow(QWidget):
                     self.ready_panel.hide()
                 
                 self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
-                import win32gui, win32con
-                import ctypes
                 hwnd = int(self.winId())
-                exStyle = win32gui.GetWindowLong(hwnd, win32con.GWL_EXSTYLE)
-                win32gui.SetWindowLong(hwnd, win32con.GWL_EXSTYLE, exStyle | win32con.WS_EX_TRANSPARENT | win32con.WS_EX_LAYERED)
-                # Also exclude this window from screen capture
-                try:
-                    ctypes.windll.user32.SetWindowDisplayAffinity(hwnd, 0x11)
-                except Exception:
-                    pass
+                Platform.set_window_click_through(hwnd)
+                Platform.set_window_capture_excluded(hwnd)
                 
                 from core.video_capture import VideoCaptureManager
                 cw_pos = self.toolbar.pos()
@@ -635,27 +603,16 @@ class OverlayWindow(QWidget):
                 QApplication.processEvents()
                 
                 if hasattr(self, 'is_scroll') and self.is_scroll:
-                    from core.scroll_capture import ScrollCaptureManager
+                    from core.image_capture import ScrollCaptureManager
                     self.scroll_manager = ScrollCaptureManager(phys_rect, self.library_dir)
                     self.scroll_manager.show()
                 else:
-                    cropped_image = self.bg_image.copy(phys_rect)
+                    from core.image_capture import ImageCaptureManager
+                    from ui.toast_notification import ToastNotification
+                    self.__class__._active_toast = ImageCaptureManager.save_static_capture(
+                        self.bg_image, phys_rect, self.library_dir, ToastNotification
+                    )
             
-            if not (hasattr(self, 'is_scroll') and self.is_scroll) and not (hasattr(self, 'is_video') and self.is_video):
-                # Reset device pixel ratio on the cropped image before saving so it saves at full physical resolution
-                cropped_image.setDevicePixelRatio(1.0)
-                
-                timestamp = time.strftime("%Y%m%d_%H%M%S")
-                filename = f"Capture_{timestamp}.png"
-                filepath = os.path.join(self.library_dir, filename)
-                cropped_image.save(filepath, "PNG")
-                
-                clipboard = QApplication.clipboard()
-                clipboard.setImage(cropped_image)
-                from ui.toast_notification import ToastNotification
-                self.__class__._active_toast = ToastNotification(f"Image saved successfully:\n{filename}")
-                self.__class__._active_toast.show_toast()
-                
             if not (hasattr(self, 'is_scroll') and self.is_scroll):
                 self.capture_finished.emit()
                 

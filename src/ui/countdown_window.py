@@ -9,6 +9,7 @@ from PySide6.QtGui import QCursor
 
 class CountdownWindow(QWidget):
     finished = Signal()
+    cancelled = Signal()
     
     def __init__(self, seconds=5):
         super().__init__()
@@ -68,5 +69,6 @@ class CountdownWindow(QWidget):
         if event.button() == Qt.MouseButton.LeftButton:
             self.timer.stop()
             self.close()
+            self.cancelled.emit()
             import logging
             logging.debug("Countdown cancelled by user.")

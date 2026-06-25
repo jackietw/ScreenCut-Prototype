@@ -116,12 +116,12 @@ class ScrollCaptureManager(QWidget):
         self.status_lbl.setStyleSheet("color: white; font-weight: bold; font-size: 14px;")
         
         hbox_btns = QHBoxLayout()
-        btn_done = QPushButton("Finish ✔")
+        btn_done = QPushButton("Finish")
         btn_done.setStyleSheet("background-color: #1976d2; color: white; padding: 6px 15px; border-radius: 4px; font-weight: bold;")
         btn_done.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_done.clicked.connect(self.finish_capture)
         
-        btn_cancel = QPushButton("Cancel ✕")
+        btn_cancel = QPushButton("Cancel")
         btn_cancel.setStyleSheet("background-color: #d32f2f; color: white; padding: 6px 15px; border-radius: 4px; font-weight: bold;")
         btn_cancel.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_cancel.clicked.connect(self.cancel_capture)
@@ -317,3 +317,28 @@ class ScrollCaptureManager(QWidget):
         self.close()
         if self.on_done_callback:
             self.on_done_callback()
+
+class ImageCaptureManager:
+    @staticmethod
+    def save_static_capture(bg_image, phys_rect, library_dir, toast_class=None):
+        # Crop the image
+        cropped_image = bg_image.copy(phys_rect)
+        
+        # Reset device pixel ratio on the cropped image before saving so it saves at full physical resolution
+        cropped_image.setDevicePixelRatio(1.0)
+        
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        filename = f"Capture_{timestamp}.png"
+        filepath = os.path.join(library_dir, filename)
+        cropped_image.save(filepath, "PNG")
+        
+        # Copy to clipboard
+        clipboard = QApplication.clipboard()
+        clipboard.setImage(cropped_image)
+        
+        # Show toast notification if class provided
+        if toast_class:
+            toast = toast_class(f"Image saved successfully:\n{filename}")
+            toast.show_toast()
+            return toast
+        return None

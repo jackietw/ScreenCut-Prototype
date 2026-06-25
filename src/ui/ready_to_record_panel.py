@@ -18,7 +18,7 @@ class VuMeterBar(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedHeight(14)
-        self._level = 0.0   # 0.0 – 1.0
+        self._level = 0.0   # 0.0 1.0
 
     def set_level(self, level: float):
         self._level = max(0.0, min(1.0, level))
@@ -74,7 +74,7 @@ class ReadyToRecordPanel(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
 
-        # ── Audio level polling (sounddevice) ──────────────────────
+        #  Audio level polling (sounddevice) 
         self._audio_level = 0.0
         self._audio_thread = None
         self._audio_running = False
@@ -85,7 +85,7 @@ class ReadyToRecordPanel(QWidget):
         self._build_ui()
         self.adjustSize()
 
-    # ── UI Construction ───────────────────────────────────────────
+    #  UI Construction 
     def _build_ui(self):
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -103,7 +103,7 @@ class ReadyToRecordPanel(QWidget):
         card_layout.setContentsMargins(20, 16, 20, 18)
         card_layout.setSpacing(0)
 
-        # ── Title ──
+        #  Title 
         title = QLabel("Record Status")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title.setStyleSheet(
@@ -112,14 +112,14 @@ class ReadyToRecordPanel(QWidget):
         )
         card_layout.addWidget(title)
 
-        # ── Separator ──
+        #  Separator 
         sep = QFrame()
         sep.setFrameShape(QFrame.Shape.HLine)
         sep.setStyleSheet("color: rgba(255,255,255,25);")
         card_layout.addWidget(sep)
         card_layout.addSpacing(12)
 
-        # ── Cursor Row ──
+        #  Cursor Row 
         cursor_col = QVBoxLayout()
         cursor_col.setSpacing(2)
         
@@ -163,10 +163,10 @@ class ReadyToRecordPanel(QWidget):
         card_layout.addLayout(cursor_row)
         card_layout.addSpacing(14)
 
-        # ── Microphone Row ──
+        #  Microphone Row 
         mic_col = QVBoxLayout()
         mic_col.setSpacing(4)
-        self.lbl_mic_device = QLabel("—")
+        self.lbl_mic_device = QLabel("--")
         self.lbl_mic_device.setStyleSheet("color: #888888; font-size: 11px;")
         self.vu = VuMeterBar()
         self.vu.setFixedWidth(140)
@@ -237,10 +237,10 @@ class ReadyToRecordPanel(QWidget):
 
         return row
 
-    # ── Status Update API ──────────────────────────────────────────
+    #  Status Update API 
     def update_cursor_status(self, is_on: bool):
         if is_on:
-            self.lbl_cursor_main.setText("● ON")
+            self.lbl_cursor_main.setText("ON")
             self.lbl_cursor_main.setStyleSheet("color: #4caf50; font-size: 13px; font-weight: 700;")
         else:
             self.lbl_cursor_main.setText("OFF")
@@ -258,7 +258,7 @@ class ReadyToRecordPanel(QWidget):
     def update_audio_status(self, is_audio_on: bool):
         self._is_audio_on = is_audio_on
         if is_audio_on:
-            self.lbl_audio_on.setText("● ON")
+            self.lbl_audio_on.setText("ON")
             self.lbl_audio_on.setStyleSheet("color: #4caf50; font-size: 13px; font-weight: 700;")
             self._start_audio_monitor()
         else:
@@ -270,7 +270,7 @@ class ReadyToRecordPanel(QWidget):
     def set_audio_device_name(self, name: str):
         self.lbl_mic_device.setText(name[:30] if name else "System Default")
 
-    # ── Audio Level Monitoring ─────────────────────────────────────
+    #  Audio Level Monitoring 
     def _start_audio_monitor(self):
         if self._audio_running:
             return

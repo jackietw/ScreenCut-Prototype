@@ -11,14 +11,9 @@ from PySide6.QtGui import QIcon, QAction
 from ui.main_window import MainWindow
 
 def get_documents_folder():
-    if os.name == 'nt':
-        import ctypes.wintypes
-        CSIDL_PERSONAL = 5
-        SHGFP_TYPE_CURRENT = 0
-        buf = ctypes.create_unicode_buffer(ctypes.wintypes.MAX_PATH)
-        ctypes.windll.shell32.SHGetFolderPathW(None, CSIDL_PERSONAL, None, SHGFP_TYPE_CURRENT, buf)
-        return buf.value
-    return os.path.join(os.path.expanduser("~"), "Documents")
+    from platforms import Platform
+    return Platform.get_documents_folder()
+
 
 def global_exception_handler(exc_type, exc_value, exc_tb):
     import traceback

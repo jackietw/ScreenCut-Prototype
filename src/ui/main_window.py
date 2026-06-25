@@ -3,8 +3,8 @@
 * SPDX-License-Identifier: LGPL-2.0-or-later
 '''
 
-import ctypes
-import ctypes.wintypes
+import sys
+from platforms import Platform
 from PySide6.QtWidgets import QMainWindow, QPushButton, QVBoxLayout, QWidget, QHBoxLayout, QTabWidget, QLabel
 from PySide6.QtCore import Qt, QTimer
 from ui.overlay_window import OverlayWindow
@@ -332,6 +332,7 @@ class MainWindow(QMainWindow):
         if has_delay:
             self.countdown = CountdownWindow(5)
             self.countdown.finished.connect(lambda: self._do_overlay(is_video=False))
+            self.countdown.cancelled.connect(self.show_after_capture)
             self.countdown.show()
         else:
             from PySide6.QtCore import QTimer
@@ -350,6 +351,7 @@ class MainWindow(QMainWindow):
         if has_delay:
             self.countdown = CountdownWindow(5)
             self.countdown.finished.connect(lambda: self._do_overlay(is_video=True))
+            self.countdown.cancelled.connect(self.show_after_capture)
             self.countdown.show()
         else:
             from PySide6.QtCore import QTimer
@@ -388,36 +390,49 @@ class MainWindow(QMainWindow):
         from config import load_config
         cfg = load_config()
         hotkeys = cfg.get("hotkeys", {})
-        
+
         # Default for Video: Ctrl+Shift+V
-        vk_video = hotkeys.get("video_hotkey", {}).get("vk", 0x56)  # 'V'
-        mods_video = hotkeys.get("video_hotkey", {}).get("modifiers", 6)  # MOD_SHIFT(4) | MOD_CONTROL(2)
-        if vk_video: ctypes.windll.user32.RegisterHotKey(int(self.winId()), self.HOTKEY_VIDEO_ID, mods_video, vk_video)
-            
+        vk_video  = hotkeys.get("video_hotkey", {}).get("vk", 0x56)   # 'V'
+        mods_video = hotkeys.get("video_hotkey", {}).get("modifiers", 6)  # Shift|Ctrl
+        if vk_video:
+            Platform.register_hotkey(int(self.winId()), self.HOTKEY_VIDEO_ID, mods_video, vk_video)
+
         # Default for Image: Ctrl+Shift+P
-        vk_image = hotkeys.get("image_hotkey", {}).get("vk", 0x50)  # 'P'
-        mods_image = hotkeys.get("image_hotkey", {}).get("modifiers", 6)  # MOD_SHIFT(4) | MOD_CONTROL(2)
-        if vk_image: ctypes.windll.user32.RegisterHotKey(int(self.winId()), self.HOTKEY_IMAGE_ID, mods_image, vk_image)
+        vk_image  = hotkeys.get("image_hotkey", {}).get("vk", 0x50)   # 'P'
+        mods_image = hotkeys.get("image_hotkey", {}).get("modifiers", 6)  # Shift|Ctrl
+        if vk_image:
+            Platform.register_hotkey(int(self.winId()), self.HOTKEY_IMAGE_ID, mods_image, vk_image)
+
+        # On macOS, wire up callbacks via pynput (no WM_HOTKEY)
+        if sys.platform == "darwin" and hasattr(Platform, 'set_hotkey_callback'):
+            Platform.set_hotkey_callback(self.HOTKEY_VIDEO_ID, self.start_video_capture)
+            Platform.set_hotkey_callback(self.HOTKEY_IMAGE_ID, self.start_capture)
 
     def update_hotkey(self, config_key, mods, vk):
         hotkey_id = self.HOTKEY_VIDEO_ID if config_key == "video_hotkey" else self.HOTKEY_IMAGE_ID
-        ctypes.windll.user32.UnregisterHotKey(int(self.winId()), hotkey_id)
+        Platform.unregister_hotkey(int(self.winId()), hotkey_id)
         if vk:
-            ctypes.windll.user32.RegisterHotKey(int(self.winId()), hotkey_id, mods, vk)
+            Platform.register_hotkey(int(self.winId()), hotkey_id, mods, vk)
+            if sys.platform == "darwin" and hasattr(Platform, 'set_hotkey_callback'):
+                cb = self.start_video_capture if hotkey_id == self.HOTKEY_VIDEO_ID else self.start_capture
+                Platform.set_hotkey_callback(hotkey_id, cb)
 
     def nativeEvent(self, eventType, message):
-        if eventType == b"windows_generic_MSG" or eventType == b"windows_dispatcher_MSG":
-            msg = ctypes.wintypes.MSG.from_address(message.__int__())
-            if msg.message == 0x0312: # WM_HOTKEY
-                if msg.wParam == self.HOTKEY_VIDEO_ID:
-                    self.start_video_capture()
-                    return True, 0
-                elif msg.wParam == self.HOTKEY_IMAGE_ID:
-                    self.start_capture()
-                    return True, 0
+        # WM_HOTKEY interception is Windows-only
+        if sys.platform == "win32":
+            import ctypes.wintypes
+            if eventType in (b"windows_generic_MSG", b"windows_dispatcher_MSG"):
+                msg = ctypes.wintypes.MSG.from_address(message.__int__())
+                if msg.message == 0x0312:  # WM_HOTKEY
+                    if msg.wParam == self.HOTKEY_VIDEO_ID:
+                        self.start_video_capture()
+                        return True, 0
+                    elif msg.wParam == self.HOTKEY_IMAGE_ID:
+                        self.start_capture()
+                        return True, 0
         return super().nativeEvent(eventType, message)
         
     def closeEvent(self, event):
-        ctypes.windll.user32.UnregisterHotKey(int(self.winId()), self.HOTKEY_VIDEO_ID)
-        ctypes.windll.user32.UnregisterHotKey(int(self.winId()), self.HOTKEY_IMAGE_ID)
+        Platform.unregister_hotkey(int(self.winId()), self.HOTKEY_VIDEO_ID)
+        Platform.unregister_hotkey(int(self.winId()), self.HOTKEY_IMAGE_ID)
         super().closeEvent(event)

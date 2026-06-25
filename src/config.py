@@ -25,8 +25,8 @@ def is_debug_mode() -> bool:
 def setup_logging():
     """Configure the root logger based on debug_mode.
     
-    - debug_mode=True  → DEBUG level, output to console + log file
-    - debug_mode=False → WARNING level only, output to log file (silent on console)
+    - debug_mode=True  ??DEBUG level, output to console + log file
+    - debug_mode=False ??WARNING level only, output to log file (silent on console)
     """
     import logging
     import os

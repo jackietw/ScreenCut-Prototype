@@ -21,14 +21,9 @@ class VideoToolbar(QWidget):
         self.setWindowFlags(Qt.WindowType.ToolTip | Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         
-        # Exclude from screen capture (Windows 10 2004+)
-        try:
-            import ctypes
-            hwnd = int(self.winId())
-            ctypes.windll.user32.SetWindowDisplayAffinity(hwnd, 0x11)
-        except Exception as e:
-            import logging
-            logging.warning("SetWindowDisplayAffinity failed for VideoToolbar: %s", e)
+        # Exclude from screen capture via platform abstraction
+        from platforms import Platform
+        Platform.set_window_capture_excluded(int(self.winId()))
             
         self.state = self.PRE_RECORD
         
@@ -95,7 +90,7 @@ class VideoToolbar(QWidget):
         self.btn_cancel.setStyleSheet("background-color: #4a4a4a; padding: 8px 12px; border-radius: 6px; border: none;")
         self.btn_cancel.clicked.connect(self.cancel_requested.emit)
         
-        # Layout: [‚óèRecord] [üñ∞] [üéô] | [00:00:00] [‚óè] | [‚úï]
+        # Layout: [?èRecord] [?ñ∞] [??] | [00:00:00] [?è] | [?ï]
         bg_layout.addWidget(self.btn_action)
         bg_layout.addWidget(self.btn_cursor)
         bg_layout.addWidget(self.btn_audio)

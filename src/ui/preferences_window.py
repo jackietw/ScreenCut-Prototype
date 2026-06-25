@@ -79,10 +79,10 @@ class PreferencesWindow(QDialog):
         
         # Title Bar
         title_layout = QHBoxLayout()
-        title_lbl = QLabel("⚙ Preferences")
+        title_lbl = QLabel("??Preferences")
         title_lbl.setObjectName("Title")
         
-        close_btn = QPushButton("✕")
+        close_btn = QPushButton("??)
         close_btn.setObjectName("CloseButton")
         close_btn.setFixedSize(24, 24)
         close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
