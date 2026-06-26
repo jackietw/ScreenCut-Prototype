@@ -33,6 +33,8 @@ class MainWindow(QMainWindow):
             }
             QLabel { color: #ffffff; font-size: 13px; }
             QTabWidget, QTabWidget::pane { background: transparent; border: 0; }
+            QTabWidget::tab-bar { alignment: left; left: 0px; }
+            QTabBar { qproperty-expanding: 0; }
             QTabBar::tab { 
                 background: #2d2d2d; 
                 color: #aaaaaa; 
@@ -102,6 +104,7 @@ class MainWindow(QMainWindow):
         # Tabs at the top
         self.tabs = QTabWidget()
         self.tabs.setObjectName("MainTabs")
+        self.tabs.tabBar().setExpanding(False)
         
         # Image Tab
         tab_image = QWidget()

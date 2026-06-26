@@ -43,14 +43,16 @@ def main():
     app_icon = create_svg_icon(SVG_APP_ICON, 64, 64)
     app.setWindowIcon(app_icon)
     
-    # Single Instance Check
-    from PySide6.QtCore import QSharedMemory
-    shared_mem = QSharedMemory("ScreenCut_Unique_Instance_Lock")
-    if not shared_mem.create(1):
+    # Single Instance Check via QLockFile (reliable cross-platform cleanup)
+    from PySide6.QtCore import QLockFile, QDir
+    lock_path = os.path.join(QDir.tempPath(), "ScreenCut_Unique_Instance.lock")
+    lock_file = QLockFile(lock_path)
+    lock_file.setStaleLockTime(1000)
+    if not lock_file.tryLock(100):
         from PySide6.QtWidgets import QMessageBox
-        # Create a temporary dummy widget to show the message box properly
         QMessageBox.warning(None, "ScreenCut", "ScreenCut is already running in the background.\nPlease check your System Tray.")
         sys.exit(0)
+    app._lock_file = lock_file
     
     # Keep application running when the main window is closed
     app.setQuitOnLastWindowClosed(False)
