@@ -83,6 +83,7 @@ class OverlayWindow(QWidget):
         DRAWING = 1
         ADJUSTING = 2
         RECORDING = 3
+        COUNTDOWN = 4
 
     def __init__(self, library_dir, capture_cursor=False, is_scroll=False, is_video=False):
         super().__init__()
@@ -323,12 +324,12 @@ class OverlayWindow(QWidget):
         elif self.state == self.State.ADJUSTING:
             draw_rect = self.selected_rect
             pen_color = QColor(255, 200, 0)
-        elif self.state == self.State.RECORDING:
+        elif self.state in (self.State.RECORDING, self.State.COUNTDOWN):
             draw_rect = self.selected_rect
             pen_color = QColor(255, 0, 0)
             
         # Draw the dim overlay using clipping to create a "hole"
-        if self.state != self.State.RECORDING:
+        if self.state not in (self.State.RECORDING, self.State.COUNTDOWN):
             dim_region = QRegion(self.rect())
             if not draw_rect.isEmpty():
                 dim_region = dim_region.subtracted(QRegion(draw_rect))
@@ -341,8 +342,20 @@ class OverlayWindow(QWidget):
             painter.setPen(QPen(pen_color, 2, Qt.PenStyle.SolidLine))
             painter.drawRect(draw_rect)
             
-            if self.state != self.State.RECORDING:
+            if self.state not in (self.State.RECORDING, self.State.COUNTDOWN):
                 painter.fillRect(draw_rect, QColor(0, 0, 0, 1))
+                
+            if self.state == self.State.COUNTDOWN:
+                painter.setClipRegion(QRegion(draw_rect))
+                painter.fillRect(draw_rect, QColor(0, 0, 0, 150))
+                painter.setClipping(False)
+                
+                if hasattr(self, 'countdown_num'):
+                    text = str(self.countdown_num)
+                    font = QFont("Arial", int(80 * getattr(self, 'countdown_scale', 1.0)), QFont.Weight.Bold)
+                    painter.setFont(font)
+                    painter.setPen(QColor(255, 255, 255, getattr(self, 'countdown_opacity', 255)))
+                    painter.drawText(draw_rect, Qt.AlignmentFlag.AlignCenter, text)
             
             if self.state == self.State.ADJUSTING:
                 painter.setBrush(QColor(255, 255, 255))
@@ -564,38 +577,26 @@ class OverlayWindow(QWidget):
                               int(rect.height() * self.ratio))
             
             if hasattr(self, 'is_video') and self.is_video:
-                self.state = self.State.RECORDING
-                if hasattr(self, 'bg_image'):
-                    del self.bg_image
+                self.state = self.State.COUNTDOWN
+                self.toolbar.hide()
                 
-                settings = None
                 if hasattr(self, 'ready_panel') and self.ready_panel:
-                    settings = {
+                    self._recording_settings = {
                         "capture_cursor": self.toolbar.btn_cursor.isChecked(),
                         "audio": self.toolbar.btn_audio.isChecked()
                     }
                     self.ready_panel.hide()
-                
-                self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
-                hwnd = int(self.winId())
-                Platform.set_window_click_through(hwnd)
-                Platform.set_window_capture_excluded(hwnd)
-                
-                from core.video_capture import VideoCaptureManager
-                cw_pos = self.toolbar.pos()
-                self.__class__.video_manager = VideoCaptureManager(
-                    phys_rect, self.library_dir, cw_pos.x(), cw_pos.y(),
-                    override_settings=settings, existing_toolbar=self.toolbar, logical_rect=rect
-                )
-                # When recording finishes or is cancelled, close the overlay and emit finished signal
-                self.__class__.video_manager.thread.finished_signal.connect(lambda path: self.close())
-                self.__class__.video_manager.thread.finished_signal.connect(lambda path: self.capture_finished.emit())
-                
-                self.update()
-                
-                # Ensure toolbar stays on top of the overlay
-                self.__class__.video_manager.toolbar.raise_()
-                self.__class__.video_manager.toolbar.activateWindow()
+                else:
+                    self._recording_settings = None
+                    
+                from PySide6.QtCore import QVariantAnimation
+                self.countdown_anim = QVariantAnimation(self)
+                self.countdown_anim.setDuration(3000)
+                self.countdown_anim.setStartValue(3.0)
+                self.countdown_anim.setEndValue(0.0)
+                self.countdown_anim.valueChanged.connect(self._on_countdown_anim)
+                self.countdown_anim.finished.connect(self._start_actual_recording)
+                self.countdown_anim.start()
                 return
             else:
                 self.toolbar.hide()
@@ -615,6 +616,52 @@ class OverlayWindow(QWidget):
             
             if not (hasattr(self, 'is_scroll') and self.is_scroll):
                 self.capture_finished.emit()
+                
+    def _on_countdown_anim(self, value):
+        import math
+        self.countdown_num = math.ceil(value)
+        if self.countdown_num == 0:
+            return
+            
+        frac = value - math.floor(value) # 1.0 down to 0.0
+        self.countdown_scale = 1.0 + (1.0 - frac) * 2.0
+        self.countdown_opacity = int(frac * 255)
+        self.update()
+        
+    def _start_actual_recording(self):
+        rect = self.selected_rect
+        phys_rect = QRect(int(rect.left() * self.ratio), 
+                          int(rect.top() * self.ratio), 
+                          int(rect.width() * self.ratio), 
+                          int(rect.height() * self.ratio))
+                          
+        self.state = self.State.RECORDING
+        if hasattr(self, 'bg_image'):
+            del self.bg_image
+            
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        hwnd = int(self.winId())
+        Platform.set_window_click_through(hwnd)
+        Platform.set_window_capture_excluded(hwnd)
+        
+        from core.video_capture import VideoCaptureManager
+        cw_pos = getattr(self.toolbar, 'pos', lambda: QPoint(0,0))()
+        self.__class__.video_manager = VideoCaptureManager(
+            phys_rect, self.library_dir, cw_pos.x(), cw_pos.y(),
+            override_settings=getattr(self, '_recording_settings', None), 
+            existing_toolbar=self.toolbar, 
+            logical_rect=rect
+        )
+        # When recording finishes or is cancelled, close the overlay and emit finished signal
+        self.__class__.video_manager.thread.finished_signal.connect(lambda path: self.close())
+        self.__class__.video_manager.thread.finished_signal.connect(lambda path: self.capture_finished.emit())
+        
+        self.update()
+        
+        # Ensure toolbar stays on top of the overlay
+        self.__class__.video_manager.toolbar.show()
+        self.__class__.video_manager.toolbar.raise_()
+        self.__class__.video_manager.toolbar.activateWindow()
                 
     def on_cancel(self):
         if self.state == self.State.RECORDING:

@@ -178,8 +178,55 @@ class MainWindow(QMainWindow):
         prefs.exec()
 
     def show_about(self):
-        from PySide6.QtWidgets import QMessageBox
-        QMessageBox.about(self, "About ScreenCut", "ScreenCut - A simple and fast screen capture tool.\n\nVersion: 1.0.0\nLicense: LGPL-2.0-or-later")
+        if hasattr(self, '_about_overlay') and self._about_overlay:
+            self._about_overlay.close()
+            return
+
+        overlay = QWidget(self.centralWidget())
+        self._about_overlay = overlay
+        overlay.setObjectName("AboutOverlay")
+        overlay.setGeometry(self.centralWidget().rect())
+        overlay.setCursor(Qt.CursorShape.PointingHandCursor)
+        overlay.setStyleSheet("""
+            #AboutOverlay {
+                background-color: rgba(18, 18, 18, 230);
+                border-radius: 8px;
+            }
+            QLabel {
+                background: transparent;
+                border: none;
+            }
+        """)
+        
+        layout = QVBoxLayout(overlay)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.setSpacing(10)
+        
+        title = QLabel("ScreenCut")
+        title.setStyleSheet("color: #e0e0e0; font-size: 22px; font-weight: bold; letter-spacing: 1px;")
+        
+        subtitle = QLabel("A simple and fast screen capture tool.")
+        subtitle.setStyleSheet("color: #c0c0c0; font-size: 14px;")
+        
+        info = QLabel("Version: 1.0.0  •  LGPL-2.0 License")
+        info.setStyleSheet("color: #888888; font-size: 12px; margin-top: 5px;")
+        
+        tip = QLabel("(Press any key or click anywhere to close)")
+        tip.setStyleSheet("color: #666666; font-size: 11px; font-style: italic; margin-top: 15px;")
+        
+        layout.addWidget(title, alignment=Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(subtitle, alignment=Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(info, alignment=Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(tip, alignment=Qt.AlignmentFlag.AlignCenter)
+        
+        def close_overlay(event):
+            overlay.hide()
+            overlay.deleteLater()
+            self._about_overlay = None
+            
+        overlay.mousePressEvent = close_overlay
+        overlay.show()
+        overlay.raise_()
 
     def setup_video_tab(self, tab):
         from config import load_config
@@ -192,8 +239,7 @@ class MainWindow(QMainWindow):
         settings_layout = QVBoxLayout()
         settings_layout.setSpacing(15)
         
-        self.add_setting_row(settings_layout, "Capture Cursor (Video)", toggles_config.get("Capture Cursor (Video)", False), has_details=True)
-        self.add_setting_row(settings_layout, "5 Second Delay (Video)", toggles_config.get("5 Second Delay (Video)", False))
+        self.add_setting_row(settings_layout, "Capture Cursor", toggles_config.get("Capture Cursor (Video)", False), has_details=True, key_name="Capture Cursor (Video)")
         
         settings_layout.addStretch()
         layout.addLayout(settings_layout, stretch=2)
@@ -256,15 +302,18 @@ class MainWindow(QMainWindow):
         
         layout.addLayout(capture_layout, stretch=1)
 
-    def add_setting_row(self, layout, label_text, is_checked=False, has_details=False):
+    def add_setting_row(self, layout, label_text, is_checked=False, has_details=False, key_name=None):
+        if key_name is None:
+            key_name = label_text
+            
         row = QHBoxLayout()
         lbl = QLabel(label_text)
         from ui.toggle_switch import ToggleSwitch
         toggle = ToggleSwitch()
         toggle.setChecked(is_checked)
-        self.toggles[label_text] = toggle
+        self.toggles[key_name] = toggle
         
-        toggle.stateChanged.connect(lambda state, text=label_text: self.save_toggle_state(text, state))
+        toggle.stateChanged.connect(lambda state, text=key_name: self.save_toggle_state(text, state))
         
         row.addWidget(lbl)
         row.addStretch()
@@ -342,20 +391,10 @@ class MainWindow(QMainWindow):
         self.hide()
         capture_cursor = self.toggles.get("Capture Cursor (Video)", None)
         self._has_cursor = capture_cursor.isChecked() if capture_cursor else False
-        
-        delay_toggle = self.toggles.get("5 Second Delay (Video)", None)
-        has_delay = delay_toggle.isChecked() if delay_toggle else False
-        
         self._is_scroll = False
         
-        if has_delay:
-            self.countdown = CountdownWindow(5)
-            self.countdown.finished.connect(lambda: self._do_overlay(is_video=True))
-            self.countdown.cancelled.connect(self.show_after_capture)
-            self.countdown.show()
-        else:
-            from PySide6.QtCore import QTimer
-            QTimer.singleShot(200, lambda: self._do_overlay(is_video=True))
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(200, lambda: self._do_overlay(is_video=True))
         
     def _do_overlay(self, is_video=False):
         self.overlay = OverlayWindow(self.library_dir, self._has_cursor, self._is_scroll, is_video)
