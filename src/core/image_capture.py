@@ -125,15 +125,17 @@ class ScrollCaptureManager(QWidget):
         th = self.height()
         
         ratio = QApplication.primaryScreen().devicePixelRatio()
-        logical_rect_center_x = int((rect.x() + rect.width() / 2) / ratio)
-        logical_rect_bottom = int((rect.y() + rect.height()) / ratio)
-        logical_rect_top = int(rect.y() / ratio)
+        import sys
+        coord_ratio = 1.0 if sys.platform == 'darwin' else ratio
+        logical_rect_center_x = int((rect.x() + rect.width() / 2) / coord_ratio)
+        logical_rect_bottom = int((rect.y() + rect.height()) / coord_ratio)
+        logical_rect_top = int(rect.y() / coord_ratio)
         
         x = logical_rect_center_x - tw // 2
         y = logical_rect_bottom + 15
         
         # Keep it within screen bounds
-        screen = QApplication.screenAt(QPoint(logical_rect_center_x, int(rect.y() / ratio)))
+        screen = QApplication.screenAt(QPoint(logical_rect_center_x, int(rect.y() / coord_ratio)))
         if not screen:
             screen = QApplication.primaryScreen()
             

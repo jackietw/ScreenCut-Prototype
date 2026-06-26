@@ -48,6 +48,9 @@ class OverlayWindow(QWidget):
             
         # Handle DPI scaling
         self.ratio = self.screen().devicePixelRatio()
+        import sys
+        self.mss_ratio = 1.0 if sys.platform == 'darwin' else self.ratio
+
         if hasattr(self, 'bg_image'):
             self.bg_image.setDevicePixelRatio(self.ratio)
             
@@ -55,10 +58,10 @@ class OverlayWindow(QWidget):
         if capture_cursor and hasattr(self, 'bg_image'):
             self._draw_cursor_on_bg()
             
-        self.setGeometry(int(monitor["left"] / self.ratio), 
-                         int(monitor["top"] / self.ratio), 
-                         int(monitor["width"] / self.ratio), 
-                         int(monitor["height"] / self.ratio))
+        self.setGeometry(int(monitor["left"] / self.mss_ratio), 
+                         int(monitor["top"] / self.mss_ratio), 
+                         int(monitor["width"] / self.mss_ratio), 
+                         int(monitor["height"] / self.mss_ratio))
 
         # 2. Cache all visible window rects at the moment of freeze
         self.window_rects = []
@@ -71,8 +74,8 @@ class OverlayWindow(QWidget):
                 t -= self.screen_offset_y
                 b -= self.screen_offset_y
                 logical_rect = QRect(
-                    int(l / self.ratio), int(t / self.ratio),
-                    int((r - l) / self.ratio), int((b - t) / self.ratio)
+                    int(l / self.mss_ratio), int(t / self.mss_ratio),
+                    int((r - l) / self.mss_ratio), int((b - t) / self.mss_ratio)
                 )
                 self.window_rects.append(logical_rect)
 
@@ -138,9 +141,9 @@ class OverlayWindow(QWidget):
         # We must use purely logical coordinates here.
         cursor_pos = QCursor.pos()
         
-        # self.screen_offset_x is physical, so convert it to logical
-        logical_offset_x = self.screen_offset_x / self.ratio
-        logical_offset_y = self.screen_offset_y / self.ratio
+        # self.screen_offset_x is physical on Win, but logical on Mac
+        logical_offset_x = self.screen_offset_x / self.mss_ratio
+        logical_offset_y = self.screen_offset_y / self.mss_ratio
         
         rel_x = cursor_pos.x() - logical_offset_x
         rel_y = cursor_pos.y() - logical_offset_y
@@ -515,10 +518,14 @@ class OverlayWindow(QWidget):
         rect = self.selected_rect
             
         if rect.width() > 0 and rect.height() > 0:
-            phys_rect = QRect(int(rect.left() * self.ratio), 
-                              int(rect.top() * self.ratio), 
-                              int(rect.width() * self.ratio), 
-                              int(rect.height() * self.ratio))
+            mss_rect = QRect(int(rect.left() * self.mss_ratio), 
+                             int(rect.top() * self.mss_ratio), 
+                             int(rect.width() * self.mss_ratio), 
+                             int(rect.height() * self.mss_ratio))
+            img_phys_rect = QRect(int(rect.left() * self.ratio), 
+                                  int(rect.top() * self.ratio), 
+                                  int(rect.width() * self.ratio), 
+                                  int(rect.height() * self.ratio))
             
             if hasattr(self, 'is_video') and self.is_video:
                 self.state = self.State.COUNTDOWN
@@ -549,13 +556,13 @@ class OverlayWindow(QWidget):
                 
                 if hasattr(self, 'is_scroll') and self.is_scroll:
                     from core.image_capture import ScrollCaptureManager
-                    self.scroll_manager = ScrollCaptureManager(phys_rect, self.library_dir)
+                    self.scroll_manager = ScrollCaptureManager(mss_rect, self.library_dir)
                     self.scroll_manager.show()
                 else:
                     from core.image_capture import ImageCaptureManager
                     from ui.toast_notification import ToastNotification
                     self.__class__._active_toast = ImageCaptureManager.save_static_capture(
-                        self.bg_image, phys_rect, self.library_dir, ToastNotification
+                        self.bg_image, img_phys_rect, self.library_dir, ToastNotification
                     )
             
             if not (hasattr(self, 'is_scroll') and self.is_scroll):
@@ -574,10 +581,10 @@ class OverlayWindow(QWidget):
         
     def _start_actual_recording(self):
         rect = self.selected_rect
-        phys_rect = QRect(int(rect.left() * self.ratio), 
-                          int(rect.top() * self.ratio), 
-                          int(rect.width() * self.ratio), 
-                          int(rect.height() * self.ratio))
+        mss_rect = QRect(int(rect.left() * self.mss_ratio), 
+                         int(rect.top() * self.mss_ratio), 
+                         int(rect.width() * self.mss_ratio), 
+                         int(rect.height() * self.mss_ratio))
                           
         self.state = self.State.RECORDING
         if hasattr(self, 'bg_image'):
@@ -591,7 +598,7 @@ class OverlayWindow(QWidget):
         from core.video_capture import VideoCaptureManager
         cw_pos = getattr(self.toolbar, 'pos', lambda: QPoint(0,0))()
         self.__class__.video_manager = VideoCaptureManager(
-            phys_rect, self.library_dir, cw_pos.x(), cw_pos.y(),
+            mss_rect, self.library_dir, cw_pos.x(), cw_pos.y(),
             override_settings=getattr(self, '_recording_settings', None), 
             existing_toolbar=self.toolbar, 
             logical_rect=rect
