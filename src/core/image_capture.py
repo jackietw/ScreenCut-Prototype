@@ -11,6 +11,9 @@ import cv2
 import numpy as np
 import time
 import os
+import json
+from PySide6.QtCore import QBuffer, QByteArray, QIODevice
+from version import PROJECT_FILE_VERSION
 
 class BorderOverlay(QWidget):
     def __init__(self, physical_rect):
@@ -273,9 +276,8 @@ class ScrollCaptureManager(QWidget):
         if self.accumulated_image is not None:
             # Save accumulated_image
             timestamp = time.strftime("%Y%m%d_%H%M%S")
-            filename = f"ScrollCapture_{timestamp}.png"
+            filename = f"ScrollCapture_{timestamp}.scut"
             filepath = os.path.join(self.library_dir, filename)
-            cv2.imwrite(filepath, self.accumulated_image)
             
             # Copy to clipboard
             img_rgb = cv2.cvtColor(self.accumulated_image, cv2.COLOR_BGR2RGB)
@@ -285,6 +287,8 @@ class ScrollCaptureManager(QWidget):
             
             # Ensure proper memory handling for QImage created from numpy array
             q_img_copy = q_img.copy() 
+            save_image_as_scut(q_img_copy, filepath)
+            
             clipboard = QApplication.clipboard()
             clipboard.setImage(q_img_copy)
             
@@ -302,6 +306,34 @@ class ScrollCaptureManager(QWidget):
         if self.on_done_callback:
             self.on_done_callback()
 
+def save_image_as_scut(q_img: QImage, filepath: str):
+    try:
+        ba = QByteArray()
+        buf = QBuffer(ba)
+        buf.open(QIODevice.OpenModeFlag.WriteOnly)
+        q_img.save(buf, "PNG")
+        img_b64 = ba.toBase64().data().decode('ascii')
+        
+        thumb = q_img.scaled(256, 256, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+        t_ba = QByteArray()
+        t_buf = QBuffer(t_ba)
+        t_buf.open(QIODevice.OpenModeFlag.WriteOnly)
+        thumb.save(t_buf, "PNG")
+        thumb_b64 = t_ba.toBase64().data().decode('ascii')
+        
+        data = {
+            "version": PROJECT_FILE_VERSION,
+            "timestamp": time.strftime("%Y%m%d_%H%M%S"),
+            "image_base64": img_b64,
+            "thumbnail_base64": thumb_b64,
+            "annotations": []
+        }
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"Error saving scut capture: {e}")
+
+
 class ImageCaptureManager:
     @staticmethod
     def save_static_capture(bg_image, phys_rect, library_dir, toast_class=None):
@@ -312,17 +344,24 @@ class ImageCaptureManager:
         cropped_image.setDevicePixelRatio(1.0)
         
         timestamp = time.strftime("%Y%m%d_%H%M%S")
-        filename = f"Capture_{timestamp}.png"
+        filename = f"Capture_{timestamp}.scut"
         filepath = os.path.join(library_dir, filename)
-        cropped_image.save(filepath, "PNG")
+        save_image_as_scut(cropped_image, filepath)
         
         # Copy to clipboard
         clipboard = QApplication.clipboard()
         clipboard.setImage(cropped_image)
         
+        from config import load_config
+        config = load_config()
+        if config.get("toggles", {}).get("Preview in Editor", True):
+            from ui.image_editor import ImageEditorWindow
+            ImageCaptureManager._active_editor = ImageEditorWindow.get_instance(library_dir, initial_image=cropped_image, current_filepath=filepath)
+            return None
+
         # Show toast notification if class provided
         if toast_class:
-            toast = toast_class(f"Image saved successfully:\n{filename}")
+            toast = toast_class(f"Project saved successfully:\n{filename}")
             toast.show_toast()
             return toast
         return None

@@ -25,7 +25,7 @@ class ImageTab(QWidget):
         settings_layout = QVBoxLayout()
         settings_layout.setSpacing(15)
         
-        self.main_window.add_setting_row(settings_layout, "Preview in Editor(X)", toggles_config.get("Preview in Editor(X)", True))
+        self.main_window.add_setting_row(settings_layout, "Preview in Editor", toggles_config.get("Preview in Editor", True))
         self.main_window.add_setting_row(settings_layout, "Copy to Clipboard", toggles_config.get("Copy to Clipboard", True))
         self.main_window.add_setting_row(settings_layout, "Capture Cursor", toggles_config.get("Capture Cursor", False))
         self.main_window.add_setting_row(settings_layout, "5 Second Delay", toggles_config.get("5 Second Delay", False))

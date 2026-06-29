@@ -8,12 +8,13 @@ from platforms import Platform
 from PySide6.QtWidgets import QMainWindow, QPushButton, QVBoxLayout, QWidget, QHBoxLayout, QTabWidget, QLabel
 from PySide6.QtCore import Qt, QTimer
 from ui.toggle_switch import ToggleSwitch
+from version import CAPTURE_VERSION
 
 class MainWindow(QMainWindow):
     def __init__(self, library_dir):
         super().__init__()
         self.library_dir = library_dir
-        self.setWindowTitle("ScreenCut Capture")
+        self.setWindowTitle(f"ScreenCut Capture v{CAPTURE_VERSION}")
         self.resize(450, 270)
         self.setMinimumSize(450, 270)
         
@@ -136,16 +137,16 @@ class MainWindow(QMainWindow):
         btn_presets.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_presets.clicked.connect(self.open_preferences)
         
-        btn_editor = QPushButton("Open Editor(X)")
-        btn_editor.setIcon(create_svg_icon(SVG_EDITOR))
-        btn_editor.setIconSize(QSize(18, 18))
-        btn_editor.setStyleSheet("color: #aaaaaa; font-size: 14px; background: transparent; border: none; text-align: left;")
-        btn_editor.setCursor(Qt.CursorShape.PointingHandCursor)
-        # TODO: Implement editor functionality
+        self.btn_editor = QPushButton("Open Editor")
+        self.btn_editor.setIcon(create_svg_icon(SVG_EDITOR))
+        self.btn_editor.setIconSize(QSize(18, 18))
+        self.btn_editor.setStyleSheet("color: #aaaaaa; font-size: 14px; background: transparent; border: none; text-align: left;")
+        self.btn_editor.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_editor.clicked.connect(self.open_editor)
         
         bottom_layout.addWidget(btn_presets)
         bottom_layout.addStretch()
-        bottom_layout.addWidget(btn_editor)
+        bottom_layout.addWidget(self.btn_editor)
         
         main_layout.addWidget(bottom_bar)
         
@@ -178,6 +179,10 @@ class MainWindow(QMainWindow):
         from ui.preferences_window import PreferencesWindow
         prefs = PreferencesWindow(self)
         prefs.exec()
+
+    def open_editor(self, initial_image=None, current_filepath=None):
+        from ui.image_editor import ImageEditorWindow
+        self.editor_win = ImageEditorWindow.get_instance(self.library_dir, initial_image=initial_image, current_filepath=current_filepath)
 
     def show_about(self):
         if hasattr(self, '_about_overlay') and self._about_overlay:
@@ -233,6 +238,8 @@ class MainWindow(QMainWindow):
     def on_tab_changed(self, index):
         if index == 1 and not self.video_tab_loaded:
             self.load_video_tab()
+        if hasattr(self, 'btn_editor'):
+            self.btn_editor.setVisible(index == 0)
 
     def load_video_tab(self):
         if getattr(self, 'video_tab_loaded', False):

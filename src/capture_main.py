@@ -43,6 +43,26 @@ def main():
     app_icon = create_svg_icon(SVG_APP_ICON, 64, 64)
     app.setWindowIcon(app_icon)
     
+    # CLI Editor Mode / File association launch
+    is_editor_mode = "--editor" in sys.argv or (len(sys.argv) > 1 and sys.argv[1].lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.scut')))
+    if is_editor_mode:
+        app.setQuitOnLastWindowClosed(True)
+        docs_dir = get_documents_folder()
+        library_dir = os.path.join(docs_dir, "My ScreenCut Library")
+        os.makedirs(library_dir, exist_ok=True)
+        from ui.image_editor import ImageEditorWindow
+        from PySide6.QtGui import QImage
+        file_path = None
+        for arg in sys.argv[1:]:
+            if arg != "--editor" and os.path.isfile(arg):
+                file_path = arg
+                break
+        if file_path and file_path.lower().endswith('.scut'):
+            editor = ImageEditorWindow.get_instance(library_dir, current_filepath=file_path)
+        else:
+            editor = ImageEditorWindow.get_instance(library_dir, initial_image=QImage(file_path) if file_path else None, current_filepath=file_path)
+        sys.exit(app.exec())
+
     # Single Instance Check via QLockFile (reliable cross-platform cleanup)
     from PySide6.QtCore import QLockFile, QDir
     lock_path = os.path.join(QDir.tempPath(), "ScreenCut_Unique_Instance.lock")
@@ -78,6 +98,10 @@ def main():
     capture_action = QAction("Capture", window)
     capture_action.triggered.connect(window.start_capture)
     tray_menu.addAction(capture_action)
+    
+    editor_action = QAction("Open Image Editor", window)
+    editor_action.triggered.connect(lambda: window.open_editor())
+    tray_menu.addAction(editor_action)
     
     tray_menu.addSeparator()
     
