@@ -3,8 +3,8 @@
 * SPDX-License-Identifier: LGPL-2.0-or-later
 '''
 
-from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel, QPushButton
-from PySide6.QtCore import Qt, Signal, QTimer, QSize, QPoint
+from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel
+from PySide6.QtCore import Qt, Signal, QSize
 
 class FloatingToolbar(QWidget):
     """Floating toolbar for static image capture region selection."""

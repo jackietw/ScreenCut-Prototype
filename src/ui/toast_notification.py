@@ -1,6 +1,5 @@
 from PySide6.QtWidgets import QWidget, QLabel, QVBoxLayout, QApplication
-from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QPoint
-from PySide6.QtGui import QColor
+from PySide6.QtCore import Qt, QTimer
 
 class ToastNotification(QWidget):
     def __init__(self, message, parent=None, duration=3000):

@@ -7,10 +7,7 @@ import sys
 from platforms import Platform
 from PySide6.QtWidgets import QMainWindow, QPushButton, QVBoxLayout, QWidget, QHBoxLayout, QTabWidget, QLabel
 from PySide6.QtCore import Qt, QTimer
-from ui.overlay_window import OverlayWindow
 from ui.toggle_switch import ToggleSwitch
-from ui.countdown_window import CountdownWindow
-from ui.hotkey_label import HotkeyLabel
 
 class MainWindow(QMainWindow):
     def __init__(self, library_dir):
@@ -106,18 +103,20 @@ class MainWindow(QMainWindow):
         self.tabs.setObjectName("MainTabs")
         self.tabs.tabBar().setExpanding(False)
         
-        # Image Tab
-        tab_image = QWidget()
         self.toggles = {}
-        self.setup_image_tab(tab_image)
+        
+        # Image Tab (Default loaded)
+        from ui.tab_utils import ImageTab
+        tab_image = ImageTab(self)
         self.tabs.addTab(tab_image, create_svg_icon(SVG_TAB_IMAGE), "Image")
         
-        # Video Tab
-        tab_video = QWidget()
-        self.setup_video_tab(tab_video)
-        self.tabs.addTab(tab_video, create_svg_icon(SVG_TAB_VIDEO), "Video")
+        # Video Tab (Lazy loaded placeholder)
+        self.video_tab_loaded = False
+        tab_video_placeholder = QWidget()
+        self.tabs.addTab(tab_video_placeholder, create_svg_icon(SVG_TAB_VIDEO), "Video")
         
         self.tabs.setCurrentIndex(0)
+        self.tabs.currentChanged.connect(self.on_tab_changed)
         main_layout.addWidget(self.tabs)
         
         # Bottom Bar
@@ -231,81 +230,23 @@ class MainWindow(QMainWindow):
         overlay.show()
         overlay.raise_()
 
-    def setup_video_tab(self, tab):
-        from config import load_config
-        config_data = load_config()
-        toggles_config = config_data.get("toggles", {})
-        
-        layout = QHBoxLayout(tab)
-        layout.setContentsMargins(20, 15, 20, 15)
-        
-        settings_layout = QVBoxLayout()
-        settings_layout.setSpacing(15)
-        
-        self.add_setting_row(settings_layout, "Capture Cursor", toggles_config.get("Capture Cursor (Video)", False), has_details=True, key_name="Capture Cursor (Video)")
-        self.add_setting_row(settings_layout, "Record Microphone", toggles_config.get("Record Microphone", True))
-        self.add_setting_row(settings_layout, "Record System Audio", toggles_config.get("Record System Audio", True))
-        
-        settings_layout.addStretch()
-        layout.addLayout(settings_layout, stretch=2)
-        
-        capture_layout = QVBoxLayout()
-        
-        self.record_btn = QPushButton("Record")
-        self.record_btn.setObjectName("CaptureButton")
-        self.record_btn.setFixedSize(100, 100)
-        self.record_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.record_btn.clicked.connect(self.start_video_capture)
-        
-        lbl_hotkey = HotkeyLabel("Ctrl+Shift+V", "video_hotkey")
-        lbl_hotkey.hotkey_changed.connect(self.update_hotkey)
+    def on_tab_changed(self, index):
+        if index == 1 and not self.video_tab_loaded:
+            self.load_video_tab()
 
-        capture_layout.addStretch()
-        capture_layout.addWidget(self.record_btn, alignment=Qt.AlignmentFlag.AlignCenter)
-        capture_layout.addWidget(lbl_hotkey, alignment=Qt.AlignmentFlag.AlignCenter)
-        capture_layout.addStretch()
-        
-        layout.addLayout(capture_layout, stretch=1)
-
-    def setup_image_tab(self, tab):
-        from config import load_config
-        config_data = load_config()
-        toggles_config = config_data.get("toggles", {})
-        
-        layout = QHBoxLayout(tab)
-        layout.setContentsMargins(20, 15, 20, 15)
-        
-        # Left side: Settings with Toggles
-        settings_layout = QVBoxLayout()
-        settings_layout.setSpacing(15)
-        
-        self.add_setting_row(settings_layout, "Preview in Editor(X)", toggles_config.get("Preview in Editor(X)", True))
-        self.add_setting_row(settings_layout, "Copy to Clipboard", toggles_config.get("Copy to Clipboard", True))
-        self.add_setting_row(settings_layout, "Capture Cursor", toggles_config.get("Capture Cursor", False))
-        self.add_setting_row(settings_layout, "5 Second Delay", toggles_config.get("5 Second Delay", False))
-        self.add_setting_row(settings_layout, "Scroll Capture", toggles_config.get("Scroll Capture", False))
-        
-        settings_layout.addStretch()
-        layout.addLayout(settings_layout, stretch=2)
-        
-        # Right side: Capture Button
-        capture_layout = QVBoxLayout()
-        
-        self.capture_btn = QPushButton("Capture")
-        self.capture_btn.setObjectName("CaptureButton")
-        self.capture_btn.setFixedSize(100, 100)
-        self.capture_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.capture_btn.clicked.connect(self.start_capture)
-        
-        lbl_hotkey = HotkeyLabel("Ctrl+Shift+P", "image_hotkey")
-        lbl_hotkey.hotkey_changed.connect(self.update_hotkey)
-        
-        capture_layout.addStretch()
-        capture_layout.addWidget(self.capture_btn, alignment=Qt.AlignmentFlag.AlignCenter)
-        capture_layout.addWidget(lbl_hotkey, alignment=Qt.AlignmentFlag.AlignCenter)
-        capture_layout.addStretch()
-        
-        layout.addLayout(capture_layout, stretch=1)
+    def load_video_tab(self):
+        if getattr(self, 'video_tab_loaded', False):
+            return
+        self.video_tab_loaded = True
+        from ui.tab_utils import VideoTab
+        tab_video = VideoTab(self)
+        icon = self.tabs.tabIcon(1)
+        text = self.tabs.tabText(1)
+        self.tabs.blockSignals(True)
+        self.tabs.removeTab(1)
+        self.tabs.insertTab(1, tab_video, icon, text)
+        self.tabs.setCurrentIndex(1)
+        self.tabs.blockSignals(False)
 
     def add_setting_row(self, layout, label_text, is_checked=False, has_details=False, key_name=None):
         if key_name is None:
@@ -384,6 +325,7 @@ class MainWindow(QMainWindow):
         self._is_scroll = scroll_toggle.isChecked() if scroll_toggle else False
         
         if has_delay:
+            from ui.countdown_window import CountdownWindow
             self.countdown = CountdownWindow(5)
             self.countdown.finished.connect(lambda: self._do_overlay(is_video=False))
             self.countdown.cancelled.connect(self.show_after_capture)
@@ -393,6 +335,8 @@ class MainWindow(QMainWindow):
             QTimer.singleShot(200, lambda: self._do_overlay(is_video=False))
             
     def start_video_capture(self):
+        if not getattr(self, 'video_tab_loaded', False):
+            self.load_video_tab()
         self.hide()
         capture_cursor = self.toggles.get("Capture Cursor (Video)", None)
         self._has_cursor = capture_cursor.isChecked() if capture_cursor else False
@@ -402,6 +346,7 @@ class MainWindow(QMainWindow):
         QTimer.singleShot(200, lambda: self._do_overlay(is_video=True))
         
     def _do_overlay(self, is_video=False):
+        from ui.overlay_window import OverlayWindow
         self.overlay = OverlayWindow(self.library_dir, self._has_cursor, self._is_scroll, is_video)
         self.overlay.capture_finished.connect(self.show_after_capture)
         self.overlay.show()

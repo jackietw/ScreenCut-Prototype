@@ -5,6 +5,7 @@
 
 import json
 import os
+import copy
 
 CONFIG_PATH = os.path.join(os.path.expanduser("~"), "Documents", "ScreenCutLibrary", "config.json")
 
@@ -50,21 +51,34 @@ def setup_logging():
     logging.getLogger(__name__).debug("Logging initialised (debug_mode=%s)", is_debug_mode())
 
 
+_config_cache = None
+_config_mtime = 0
+
 def load_config():
+    global _config_cache, _config_mtime
     if os.path.exists(CONFIG_PATH):
         try:
+            mtime = os.path.getmtime(CONFIG_PATH)
+            if _config_cache is not None and mtime == _config_mtime:
+                return copy.deepcopy(_config_cache)
             with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-                return json.load(f)
+                _config_cache = json.load(f)
+                _config_mtime = mtime
+                return copy.deepcopy(_config_cache)
         except Exception as e:
             import logging
             logging.warning("Error loading config: %s", e)
     return {}
 
 def save_config(data):
+    global _config_cache, _config_mtime
     try:
         os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
         with open(CONFIG_PATH, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=4)
+        _config_cache = copy.deepcopy(data)
+        if os.path.exists(CONFIG_PATH):
+            _config_mtime = os.path.getmtime(CONFIG_PATH)
     except Exception as e:
         import logging
         logging.warning("Error saving config: %s", e)

@@ -5,8 +5,8 @@
 
 import threading
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame
-from PySide6.QtCore import Qt, QTimer, QRect, QRectF
-from PySide6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QLinearGradient
+from PySide6.QtCore import Qt, QTimer, QRectF
+from PySide6.QtGui import QPainter, QColor, QBrush
 from ui.icon_utils import SVG_MOUSE, SVG_MIC, SVG_SYS_AUDIO
 
 # -------------------------------------------------------------------

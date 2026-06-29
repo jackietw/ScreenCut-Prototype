@@ -4,8 +4,8 @@
 '''
 
 from PySide6.QtWidgets import QCheckBox
-from PySide6.QtCore import Qt, QRect, QPropertyAnimation, Property, QEasingCurve, QPoint
-from PySide6.QtGui import QPainter, QColor, QPen, QBrush
+from PySide6.QtCore import Qt, QPropertyAnimation, Property, QEasingCurve, QPoint
+from PySide6.QtGui import QPainter, QColor, QBrush
 
 class ToggleSwitch(QCheckBox):
     def __init__(self, parent=None):
