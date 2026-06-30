@@ -58,6 +58,10 @@ class WindowsPlatform(PlatformBase):
         except Exception:
             pass
 
+    @staticmethod
+    def set_window_hides_on_deactivate(hwnd: int, hides: bool = False) -> None:
+        pass
+
     # --- Visible Window Enumeration ---
     @staticmethod
     def enum_visible_windows() -> list:
@@ -111,7 +115,7 @@ class WindowsPlatform(PlatformBase):
         if not HAS_WIN32:
             return (0, 0)
         try:
-            _, _, (cx, cy) = win32gui.GetCursorInfo()
+            _, _, (cx, cy) = win32gui.GetCursorInfo() # type: ignore
             return (cx, cy)
         except Exception:
             return (0, 0)

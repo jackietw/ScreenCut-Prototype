@@ -3,7 +3,7 @@
 * SPDX-License-Identifier: LGPL-2.0-or-later
 '''
 
-from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox, QWidget, QFrame
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox, QWidget, QFrame, QCheckBox
 from PySide6.QtCore import Qt, QPoint, QSize
 from config import load_config, save_config
 from resources.icon_utils import create_svg_icon, SVG_CLOSE
@@ -12,7 +12,7 @@ class PreferencesUI(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("ScreenCut Preferences")
-        self.setFixedSize(380, 260)
+        self.setFixedSize(400, 310)
         
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Dialog)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
@@ -26,6 +26,11 @@ class PreferencesUI(QDialog):
             }
             QLabel { color: #ffffff; font-size: 13px; }
             QLabel#Title { font-size: 14px; font-weight: bold; color: #aaaaaa; }
+            QCheckBox { color: #ffffff; font-size: 13px; spacing: 8px; }
+            QCheckBox::indicator { width: 16px; height: 16px; border-radius: 3px; border: 1px solid #666666; background: #2d2d2d; }
+            QCheckBox::indicator:checked { background: #1976d2; border: 1px solid #1976d2; }
+            QCheckBox:disabled { color: #666666; }
+            QCheckBox::indicator:disabled { border: 1px solid #444444; background: #1a1a1a; }
             QComboBox {
                 background-color: #2d2d2d;
                 color: #ffffff;
@@ -149,6 +154,20 @@ class PreferencesUI(QDialog):
         limit_layout.addStretch()
         limit_layout.addWidget(self.toggle_1080p)
         main_layout.addLayout(limit_layout)
+        
+        # Hardware Acceleration Checkbox & ComboBox
+        hw_layout = QHBoxLayout()
+        self.chk_hw_accel = QCheckBox("Hardware Acceleration:")
+        self.chk_hw_accel.setChecked(self.config_data.get("hw_accel", True))
+        self.chk_hw_accel.setCursor(Qt.CursorShape.PointingHandCursor)
+        
+        self.cb_hw_encoder = QComboBox()
+        self.cb_hw_encoder.setFixedWidth(190)
+        
+        hw_layout.addWidget(self.chk_hw_accel)
+        hw_layout.addStretch()
+        hw_layout.addWidget(self.cb_hw_encoder)
+        main_layout.addLayout(hw_layout)
         
         main_layout.addStretch()
         

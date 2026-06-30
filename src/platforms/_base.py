@@ -24,6 +24,11 @@ class PlatformBase:
         """Make a window transparent for mouse clicks (click-through)."""
         pass  # Graceful no-op if not supported
 
+    @staticmethod
+    def set_window_hides_on_deactivate(hwnd: int, hides: bool = False) -> None:
+        """Prevent or allow window hiding when application loses focus."""
+        pass
+
     # --- Visible Window Enumeration ---
     @staticmethod
     def enum_visible_windows() -> list:

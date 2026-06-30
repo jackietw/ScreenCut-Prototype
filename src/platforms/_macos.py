@@ -72,22 +72,37 @@ class MacOSPlatform(PlatformBase):
     # --- Screen Capture Exclusion ---
     @staticmethod
     def set_window_capture_excluded(hwnd: int) -> None:
-        # macOS equivalent via PyObjC (optional, requires pyobjc-framework-AppKit)
         try:
-            from AppKit import NSWindow  # type: ignore
-            # setSharingType: 0 = NSWindowSharingNone (not captured)
-            # This requires the window handle to be an NSWindow object, which
-            # is not directly accessible from PySide6. Graceful no-op for now.
-            pass
-        except ImportError:
+            import objc  # type: ignore
+            view = objc.objc_object(c_void_p=hwnd)
+            window = view.window() if hasattr(view, 'window') else view
+            if window and hasattr(window, 'setSharingType_'):
+                window.setSharingType_(0)  # NSWindowSharingNone
+        except Exception:
             pass
 
     # --- Window Pass-Through ---
     @staticmethod
     def set_window_click_through(hwnd: int) -> None:
-        # Qt's WindowTransparentForInput flag handles this cross-platform.
-        # Nothing extra needed on macOS.
-        pass
+        try:
+            import objc  # type: ignore
+            view = objc.objc_object(c_void_p=hwnd)
+            window = view.window() if hasattr(view, 'window') else view
+            if window and hasattr(window, 'setIgnoresMouseEvents_'):
+                window.setIgnoresMouseEvents_(True)
+        except Exception:
+            pass
+
+    @staticmethod
+    def set_window_hides_on_deactivate(hwnd: int, hides: bool = False) -> None:
+        try:
+            import objc  # type: ignore
+            view = objc.objc_object(c_void_p=hwnd)
+            window = view.window() if hasattr(view, 'window') else view
+            if window and hasattr(window, 'setHidesOnDeactivate_'):
+                window.setHidesOnDeactivate_(hides)
+        except Exception:
+            pass
 
     # --- Visible Window Enumeration ---
     @staticmethod

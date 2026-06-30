@@ -11,17 +11,25 @@ import cv2
 import numpy as np
 import time
 import os
+import sys
 import json
 from PySide6.QtCore import QBuffer, QByteArray, QIODevice
 from version import PROJECT_VERSION
+from platforms import Platform
 
 class BorderOverlay(QWidget):
     def __init__(self, physical_rect):
         super().__init__()
         # Added NoDropShadowWindowHint to prevent Windows shadow from bleeding into the screenshot
-        self.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool | Qt.WindowType.WindowTransparentForInput | Qt.WindowType.NoDropShadowWindowHint)
+        flags = Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowTransparentForInput | Qt.WindowType.NoDropShadowWindowHint
+        if sys.platform == 'darwin':
+            flags |= Qt.WindowType.ToolTip
+        else:
+            flags |= Qt.WindowType.Tool
+        self.setWindowFlags(flags)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+        Platform.set_window_hides_on_deactivate(int(self.winId()), False)
         
         # Hide this red border from screen capture APIs just to be absolutely bulletproof
         try:

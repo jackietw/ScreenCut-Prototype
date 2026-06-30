@@ -29,10 +29,23 @@ def global_exception_handler(exc_type, exc_value, exc_tb):
         from PySide6.QtWidgets import QMessageBox
         QMessageBox.critical(None, "ScreenCut Error", f"An unexpected error occurred:\n\n{error_msg}")
 
+from PySide6.QtCore import QEvent
+
 class ScreenCut(QApplication):
     def __init__(self, argv):
         super().__init__(argv)
         self._lock_file = None
+
+    def event(self, e):
+        if e.type() == QEvent.Type.FileOpen:
+            file_path = e.file()
+            if file_path and os.path.exists(file_path):
+                from platforms import Platform
+                library_dir = os.path.join(Platform.get_documents_folder(), "My ScreenCut Library")
+                from ui.image_editor import ImageEditor
+                ImageEditor.get_instance(library_dir, current_filepath=file_path)
+            return True
+        return super().event(e)
 
 
 def main():
@@ -87,6 +100,11 @@ def main():
     docs_dir = get_documents_folder()
     library_dir = os.path.join(docs_dir, "My ScreenCut Library")
     os.makedirs(library_dir, exist_ok=True)
+
+    # Pre-warm hardware video codec detection in the background
+    import threading
+    from core.video_codecs import detect_available_hw_encoders
+    threading.Thread(target=detect_available_hw_encoders, daemon=True).start()
 
     window = Main(library_dir)
     

@@ -3,6 +3,7 @@
 * SPDX-License-Identifier: LGPL-2.0-or-later
 '''
 
+from version import CAPTURE_VERSION
 import sys
 from platforms import Platform
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
@@ -65,7 +66,7 @@ class Main(MainUI):
         subtitle = QLabel("A simple and fast screen capture tool.")
         subtitle.setStyleSheet("color: #c0c0c0; font-size: 14px;")
         
-        info = QLabel("Version: 1.0.0  •  LGPL-2.0 License")
+        info = QLabel("Version: v" + CAPTURE_VERSION + " •  LGPL-2.0 License")
         info.setStyleSheet("color: #888888; font-size: 12px; margin-top: 5px;")
         
         tip = QLabel("(Press any key or click anywhere to close)")

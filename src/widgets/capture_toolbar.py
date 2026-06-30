@@ -15,6 +15,7 @@ class FloatingToolbar(QWidget):
         
         from platforms import Platform
         Platform.set_window_capture_excluded(int(self.winId()))
+        Platform.set_window_hides_on_deactivate(int(self.winId()), False)
         
         layout = QHBoxLayout(self)
         layout.setContentsMargins(5, 5, 5, 5)
@@ -93,13 +94,14 @@ class VideoToolbar(QWidget):
     PRE_RECORD = 0
     RECORDING = 1
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, init_cursor: bool = None):
         super().__init__(parent)
         self.setWindowFlags(Qt.WindowType.ToolTip | Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         
         from platforms import Platform
         Platform.set_window_capture_excluded(int(self.winId()))
+        Platform.set_window_hides_on_deactivate(int(self.winId()), False)
             
         self.state = self.PRE_RECORD
         
@@ -118,6 +120,8 @@ class VideoToolbar(QWidget):
         from config import load_config
         cfg = load_config()
         toggles_cfg = cfg.get("toggles", {})
+        if init_cursor is None:
+            init_cursor = toggles_cfg.get("Record Cursor", True)
         init_mic = toggles_cfg.get("Record Microphone", True)
         init_sys = toggles_cfg.get("Record System Audio", True)
         
@@ -139,7 +143,7 @@ class VideoToolbar(QWidget):
             icon_size=ICON_SIZE,
             color_theme="default",
             checkable=True,
-            checked=True,
+            checked=init_cursor,
             padding="8px 8px",
             fixed_height=40,
             parent=self

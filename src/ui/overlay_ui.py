@@ -90,7 +90,7 @@ class OverlayUI(QWidget):
         self.handle_size = 12
         
         if self.is_video:
-            self.toolbar = VideoToolbar(self)
+            self.toolbar = VideoToolbar(self, init_cursor=capture_cursor)
             self.toolbar.start_requested.connect(self.on_done)
             self.toolbar.cancel_requested.connect(self.on_cancel)
         else:

@@ -4,6 +4,7 @@
 '''
 
 import os
+import sys
 import time
 import numpy as np
 import mss
@@ -58,7 +59,18 @@ class VideoCaptureThread(QThread):
         click_animations = []
         prev_clicked = False
         
-        writer = imageio.get_writer(self.output_path, fps=fps, codec='libx264', macro_block_size=2, ffmpeg_params=['-preset', self.compression, '-crf', '23'])
+        from core.video_codecs import get_video_writer_params
+        hw_enabled = config_data.get("hw_accel", True)
+        hw_encoder = config_data.get("hw_encoder", "")
+        
+        codec, ffmpeg_params = get_video_writer_params(hw_enabled, hw_encoder, self.compression)
+        try:
+            writer = imageio.get_writer(self.output_path, fps=fps, codec=codec, macro_block_size=2, ffmpeg_params=ffmpeg_params)
+        except Exception as e:
+            import logging
+            logging.warning("Video writer initialization failed for codec %s (%s). Falling back to software libx264.", codec, e)
+            codec, ffmpeg_params = get_video_writer_params(False, "", self.compression)
+            writer = imageio.get_writer(self.output_path, fps=fps, codec=codec, macro_block_size=2, ffmpeg_params=ffmpeg_params)
         
         monitor = {
             "top": self.rect.top(),
@@ -76,9 +88,19 @@ class VideoCaptureThread(QThread):
                 if now < next_frame_time:
                     time.sleep(next_frame_time - now)
                     
-                # Grab frame
-                sct_img = sct.grab(monitor)
-                frame = np.array(sct_img)
+                # Grab frame (with autorelease pool on macOS to flush CoreGraphics IPC buffers)
+                if sys.platform == 'darwin':
+                    try:
+                        import objc
+                        with objc.autorelease_pool():
+                            sct_img = sct.grab(monitor)
+                            frame = np.array(sct_img)
+                    except Exception:
+                        sct_img = sct.grab(monitor)
+                        frame = np.array(sct_img)
+                else:
+                    sct_img = sct.grab(monitor)
+                    frame = np.array(sct_img)
                 # Convert BGRA to RGB for imageio (and make it contiguous for cv2)
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2RGB)
                 
@@ -133,18 +155,25 @@ class VideoCaptureThread(QThread):
                     scale = min(1920 / frame.shape[1], 1080 / frame.shape[0])
                     new_w = int(frame.shape[1] * scale)
                     new_h = int(frame.shape[0] * scale)
-                    # ensure even dimensions for video codec
-                    new_w -= new_w % 2
-                    new_h -= new_h % 2
                     frame = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_AREA)
+
+                # Ensure even dimensions for yuv420p hardware/software video encoders
+                if frame.shape[1] % 2 != 0 or frame.shape[0] % 2 != 0:
+                    ew = frame.shape[1] - (frame.shape[1] % 2)
+                    eh = frame.shape[0] - (frame.shape[0] % 2)
+                    frame = frame[:eh, :ew]
 
                 writer.append_data(frame)
                 next_frame_time += frame_duration
                 
                 now = time.time()
-                while next_frame_time <= now:
-                    writer.append_data(frame)
-                    next_frame_time += frame_duration
+                if next_frame_time < now:
+                    # Prevent infinite catch-up death spirals on macOS Retina screens
+                    if now - next_frame_time > frame_duration:
+                        next_frame_time = now
+                    else:
+                        writer.append_data(frame)
+                        next_frame_time += frame_duration
                     
         writer.close()
         self.finished_signal.emit(self.output_path)

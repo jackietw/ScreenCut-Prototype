@@ -4,8 +4,10 @@
 '''
 
 import os
+from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Qt, QRect, QPoint, QTimer, QPropertyAnimation, QEasingCurve, Signal
 from PySide6.QtGui import QCursor
+from platforms import Platform
 from ui.overlay_ui import OverlayUI
 from ui.countdown import Countdown
 
@@ -204,6 +206,17 @@ class Overlay(OverlayUI):
         Platform.set_window_click_through(hwnd)
         Platform.set_window_capture_excluded(hwnd)
         
+        img_phys_rect = QRect(int(rect.left() * self.ratio), 
+                              int(rect.top() * self.ratio), 
+                              int(rect.width() * self.ratio), 
+                              int(rect.height() * self.ratio))
+        from core.image_capture import BorderOverlay
+        self.border_overlay = BorderOverlay(img_phys_rect)
+        Platform.set_window_click_through(int(self.border_overlay.winId()))
+        Platform.set_window_capture_excluded(int(self.border_overlay.winId()))
+        self.border_overlay.show()
+        self.hide()
+        
         from core.video_capture import VideoCaptureManager
         cw_pos = getattr(self.toolbar, 'pos', lambda: QPoint(0,0))()
         self.__class__.video_manager = VideoCaptureManager(
@@ -213,7 +226,11 @@ class Overlay(OverlayUI):
             logical_rect=rect
         )
         # When recording finishes or is cancelled, close the overlay and emit finished signal
-        self.__class__.video_manager.thread.finished_signal.connect(lambda path: self.close())
+        def _cleanup_recording(path):
+            if hasattr(self, 'border_overlay') and self.border_overlay:
+                self.border_overlay.close()
+            self.close()
+        self.__class__.video_manager.thread.finished_signal.connect(_cleanup_recording)
         self.__class__.video_manager.thread.finished_signal.connect(lambda path: self.capture_finished.emit())
         
         self.update()

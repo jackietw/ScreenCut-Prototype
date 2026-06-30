@@ -13,6 +13,57 @@ from ui.preferences_ui import PreferencesUI
 class Preferences(PreferencesUI):
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.init_hw_accel_controls()
+
+    def init_hw_accel_controls(self):
+        from core.video_codecs import get_cached_hw_encoders, detect_available_hw_encoders
+        cached = get_cached_hw_encoders()
+        if cached is not None:
+            self._apply_hw_encoders(cached)
+        else:
+            self.cb_hw_encoder.clear()
+            self.cb_hw_encoder.addItem("Detecting GPU...", "")
+            self.cb_hw_encoder.setEnabled(False)
+            import threading
+            from PySide6.QtCore import QTimer
+            def _detect_bg():
+                encs = detect_available_hw_encoders()
+                QTimer.singleShot(0, lambda: self._apply_hw_encoders(encs))
+            threading.Thread(target=_detect_bg, daemon=True).start()
+
+    def _apply_hw_encoders(self, encoders):
+        cfg = load_config()
+        saved_encoder = cfg.get("hw_encoder", "")
+        
+        if encoders:
+            try:
+                self.chk_hw_accel.toggled.disconnect()
+            except Exception:
+                pass
+            self.chk_hw_accel.setText("Hardware Acceleration:")
+            self.chk_hw_accel.setEnabled(True)
+            self.cb_hw_encoder.clear()
+            for codec_id, display_name in encoders:
+                self.cb_hw_encoder.addItem(display_name, codec_id)
+                
+            idx = -1
+            if saved_encoder:
+                idx = self.cb_hw_encoder.findData(saved_encoder)
+            if idx >= 0:
+                self.cb_hw_encoder.setCurrentIndex(idx)
+            else:
+                self.cb_hw_encoder.setCurrentIndex(0)
+                
+            self.chk_hw_accel.toggled.connect(self.cb_hw_encoder.setEnabled)
+            self.cb_hw_encoder.setEnabled(self.chk_hw_accel.isChecked())
+        else:
+            # N/A: No hardware acceleration available
+            self.chk_hw_accel.setText("Hardware Acceleration (N/A):")
+            self.chk_hw_accel.setChecked(False)
+            self.chk_hw_accel.setEnabled(False)
+            self.cb_hw_encoder.clear()
+            self.cb_hw_encoder.addItem("N/A (Software Only)", "")
+            self.cb_hw_encoder.setEnabled(False)
 
     def load_audio_devices(self):
         try:
@@ -26,10 +77,11 @@ class Preferences(PreferencesUI):
 
     def save_and_close(self):
         cfg = load_config()
-        cfg["video_fps"] = int(self.cb_fps.currentText())
-        cfg["video_res"] = self.cb_res.currentText()
+        cfg["video_compression"] = self.cb_compression.currentText()
         cfg["audio_source"] = self.cb_audio.currentText()
-        cfg["60fps_limit_warning"] = self.toggle_1080p.isChecked()
+        cfg["limit_1080p"] = self.toggle_1080p.isChecked()
+        cfg["hw_accel"] = self.chk_hw_accel.isChecked()
+        cfg["hw_encoder"] = self.cb_hw_encoder.currentData() or ""
         save_config(cfg)
         self.accept()
 
