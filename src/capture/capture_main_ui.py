@@ -5,7 +5,7 @@
 
 from PySide6.QtWidgets import QMainWindow, QPushButton, QVBoxLayout, QWidget, QHBoxLayout, QTabWidget, QLabel
 from PySide6.QtCore import Qt, QSize
-from widgets.switch import Switch
+from widgets.capture_switch import Switch
 from version import CAPTURE_VERSION
 from resources.icon_utils import create_svg_icon, SVG_TAB_IMAGE, SVG_TAB_VIDEO, SVG_PREF, SVG_EDITOR, SVG_CLOSE, SVG_ABOUT, SVG_MORE
 
@@ -104,7 +104,7 @@ class MainUI(QMainWindow):
         self.toggles = {}
         
         # Image Tab (Default loaded)
-        from widgets.main_tabs import ImageTab
+        from widgets.capture_tabs import ImageTab
         tab_image = ImageTab(self)
         self.tabs.addTab(tab_image, create_svg_icon(SVG_TAB_IMAGE), "Image")
         

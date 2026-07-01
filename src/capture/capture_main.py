@@ -8,7 +8,7 @@ import sys
 from platforms import Platform
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
 from PySide6.QtCore import Qt
-from ui.main_ui import MainUI
+from capture.capture_main_ui import MainUI
 
 class Main(MainUI):
     def __init__(self, library_dir):
@@ -27,12 +27,12 @@ class Main(MainUI):
         self.register_hotkeys()
 
     def open_preferences(self):
-        from ui.preferences import Preferences
+        from capture.capture_prefs import Preferences
         prefs = Preferences(self)
         prefs.exec()
 
     def open_editor(self, initial_image=None, current_filepath=None):
-        from ui.image_editor import ImageEditor
+        from editor.editor_main import ImageEditor
         self.editor_win = ImageEditor.get_instance(self.library_dir, initial_image=initial_image, current_filepath=current_filepath)
 
     def show_about(self):
@@ -96,7 +96,7 @@ class Main(MainUI):
         if getattr(self, 'video_tab_loaded', False):
             return
         self.video_tab_loaded = True
-        from widgets.main_tabs import VideoTab
+        from widgets.capture_tabs import VideoTab
         tab_video = VideoTab(self)
         icon = self.tabs.tabIcon(1)
         text = self.tabs.tabText(1)
@@ -109,7 +109,7 @@ class Main(MainUI):
     def show_cursor_settings(self):
         btn = self.sender()
         if not hasattr(self, 'cursor_popup') or self.cursor_popup is None:
-            from ui.cursor_settings import CursorSettings
+            from capture.capture_cursor_dlg import CursorSettings
             self.cursor_popup = CursorSettings(self)
             
         pos = btn.mapToGlobal(btn.rect().topRight())
@@ -137,7 +137,7 @@ class Main(MainUI):
         self._is_scroll = scroll_toggle.isChecked() if scroll_toggle else False
         
         if has_delay:
-            from ui.countdown import Countdown
+            from capture.capture_countdown import Countdown
             self.countdown = Countdown(5)
             self.countdown.finished.connect(lambda: self._do_overlay(is_video=False))
             self.countdown.cancelled.connect(self.show_after_capture)
@@ -158,7 +158,7 @@ class Main(MainUI):
         QTimer.singleShot(200, lambda: self._do_overlay(is_video=True))
         
     def _do_overlay(self, is_video=False):
-        from ui.overlay import Overlay
+        from capture.capture_overlay import Overlay
         self.overlay = Overlay(self.library_dir, self._has_cursor, self._is_scroll, is_video)
         self.overlay.capture_finished.connect(self.show_after_capture)
         self.overlay.show()

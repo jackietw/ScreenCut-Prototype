@@ -8,7 +8,7 @@ from PySide6.QtWidgets import QDialog
 from PySide6.QtCore import Qt
 from config import load_config, save_config
 import sounddevice as sd
-from ui.preferences_ui import PreferencesUI
+from capture.capture_prefs_ui import PreferencesUI
 
 class Preferences(PreferencesUI):
     def __init__(self, parent=None):
@@ -16,7 +16,7 @@ class Preferences(PreferencesUI):
         self.init_hw_accel_controls()
 
     def init_hw_accel_controls(self):
-        from core.video_codecs import get_cached_hw_encoders, detect_available_hw_encoders
+        from core.capture_codecs import get_cached_hw_encoders, detect_available_hw_encoders
         cached = get_cached_hw_encoders()
         if cached is not None:
             self._apply_hw_encoders(cached)

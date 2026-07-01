@@ -4,7 +4,7 @@
 '''
 
 from config import save_config
-from ui.cursor_settings_ui import CursorSettingsUI
+from capture.capture_cursor_ui import CursorSettingsUI
 
 class CursorSettings(CursorSettingsUI):
     def __init__(self, parent=None):

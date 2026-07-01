@@ -5,7 +5,7 @@
 
 from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QPushButton
 from PySide6.QtCore import Qt
-from widgets.hotkey import Hotkey
+from widgets.capture_hotkey import Hotkey
 from config import load_config
 
 class ImageTab(QWidget):

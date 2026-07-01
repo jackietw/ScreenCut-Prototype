@@ -24,9 +24,9 @@ from resources.icon_utils import (create_svg_icon, SVG_SELECT, SVG_ARROW, SVG_TE
                          SVG_ZOOM_OUT, SVG_CLOSE, SVG_RECENT, SVG_TAG, 
                          SVG_EFFECTS, SVG_PROPERTIES)
 from version import EDITOR_VERSION, PROJECT_VERSION
-from widgets.notification import Notification
+from widgets.common_toast import Notification
 
-from ui.image_editor_ui import (ImageEditorUI, AnnotationObject, ArrowObject, ShapeObject, TextObject, StepObject, ImageCanvas, ToolPropertiesPanel, ResizePopup, DeleteConfirmPopup, HorizontalScrollArea, ThumbnailWidget)
+from editor.editor_main_ui import (ImageEditorUI, AnnotationObject, ArrowObject, ShapeObject, TextObject, StepObject, ImageCanvas, ToolPropertiesPanel, ResizePopup, DeleteConfirmPopup, HorizontalScrollArea, ThumbnailWidget)
 
 class ImageEditor(ImageEditorUI):
     _instance = None
@@ -228,6 +228,8 @@ class ImageEditor(ImageEditorUI):
 
     def select_tool(self, tool_id):
         self.canvas.current_tool = tool_id
+        if hasattr(self, 'toolbar'):
+            self.toolbar.set_active_tool(tool_id)
         if tool_id != "select":
             self.canvas.selected_annotation = None
             self.canvas.update()

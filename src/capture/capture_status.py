@@ -6,7 +6,7 @@
 import threading
 import numpy as np
 from PySide6.QtCore import QTimer
-from ui.rec_status_ui import RecStatusUI
+from capture.capture_status_ui import RecStatusUI
 
 class RecStatus(RecStatusUI):
     def __init__(self, parent=None):

@@ -8,8 +8,8 @@ from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Qt, QRect, QPoint, QTimer, QPropertyAnimation, QEasingCurve, Signal
 from PySide6.QtGui import QCursor
 from platforms import Platform
-from ui.overlay_ui import OverlayUI
-from ui.countdown import Countdown
+from capture.capture_overlay_ui import OverlayUI
+from capture.capture_countdown import Countdown
 
 class Overlay(OverlayUI):
     def __init__(self, library_dir, capture_cursor=False, is_scroll=False, is_video=False):
@@ -166,12 +166,12 @@ class Overlay(OverlayUI):
                 QApplication.processEvents()
                 
                 if hasattr(self, 'is_scroll') and self.is_scroll:
-                    from core.image_capture import ScrollCaptureManager
+                    from core.capture_engine import ScrollCaptureManager
                     self.scroll_manager = ScrollCaptureManager(mss_rect, self.library_dir)
                     self.scroll_manager.show()
                 else:
-                    from core.image_capture import ImageCaptureManager
-                    from widgets.notification import Notification
+                    from core.capture_engine import ImageCaptureManager
+                    from widgets.common_toast import Notification
                     self.__class__._active_toast = ImageCaptureManager.save_static_capture(
                         self.bg_image, img_phys_rect, self.library_dir, Notification
                     )
@@ -210,14 +210,14 @@ class Overlay(OverlayUI):
                               int(rect.top() * self.ratio), 
                               int(rect.width() * self.ratio), 
                               int(rect.height() * self.ratio))
-        from core.image_capture import BorderOverlay
+        from core.capture_engine import BorderOverlay
         self.border_overlay = BorderOverlay(img_phys_rect)
         Platform.set_window_click_through(int(self.border_overlay.winId()))
         Platform.set_window_capture_excluded(int(self.border_overlay.winId()))
         self.border_overlay.show()
         self.hide()
         
-        from core.video_capture import VideoCaptureManager
+        from core.capture_video import VideoCaptureManager
         cw_pos = getattr(self.toolbar, 'pos', lambda: QPoint(0,0))()
         self.__class__.video_manager = VideoCaptureManager(
             mss_rect, self.library_dir, cw_pos.x(), cw_pos.y(),

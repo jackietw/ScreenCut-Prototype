@@ -59,7 +59,7 @@ class VideoCaptureThread(QThread):
         click_animations = []
         prev_clicked = False
         
-        from core.video_codecs import get_video_writer_params
+        from core.capture_codecs import get_video_writer_params
         hw_enabled = config_data.get("hw_accel", True)
         hw_encoder = config_data.get("hw_encoder", "")
         
@@ -205,7 +205,7 @@ class VideoCaptureManager(QObject):
                 self.audio_device = "None (Muted)"
         
         if self.hl_enabled or self.cl_enabled:
-            from widgets.cursor_overlay import CursorOverlay
+            from widgets.capture_cursor import CursorOverlay
             hl_color = self.cursor_settings.get("highlight_color", "#ffff00")
             cl_color = self.cursor_settings.get("click_color", "#ff0000")
             self.live_overlay = CursorOverlay(self.hl_enabled, hl_color, self.cl_enabled, cl_color, capture_rect=self.logical_rect)
@@ -307,7 +307,7 @@ class VideoCaptureManager(QObject):
             if os.path.exists(path):
                 os.remove(path)
         else:
-            from widgets.notification import Notification
+            from widgets.common_toast import Notification
             # Save reference to prevent GC
             self.__class__._active_toast = Notification(f"Video saved successfully:\n{os.path.basename(path)}")
             self.__class__._active_toast.show_toast()

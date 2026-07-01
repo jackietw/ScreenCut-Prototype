@@ -8,7 +8,7 @@ from PySide6.QtCore import Qt, QRect, QPoint, Signal
 from PySide6.QtGui import QPainter, QColor, QPen, QBrush, QImage, QCursor, QShortcut, QKeySequence, QFont
 import mss
 from platforms import Platform
-from ui.rec_status import RecStatus
+from capture.capture_status import RecStatus
 from widgets.capture_toolbar import VideoToolbar, FloatingToolbar
 
 # Windows-only: DWM extended frame info

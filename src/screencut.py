@@ -8,7 +8,7 @@ import os
 
 from PySide6.QtWidgets import QApplication, QSystemTrayIcon, QMenu
 from PySide6.QtGui import QAction
-from ui.main import Main
+from capture.capture_main import Main
 
 def get_documents_folder():
     from platforms import Platform
@@ -42,7 +42,7 @@ class ScreenCut(QApplication):
             if file_path and os.path.exists(file_path):
                 from platforms import Platform
                 library_dir = os.path.join(Platform.get_documents_folder(), "My ScreenCut Library")
-                from ui.image_editor import ImageEditor
+                from editor.editor_main import ImageEditor
                 ImageEditor.get_instance(library_dir, current_filepath=file_path)
             return True
         return super().event(e)
@@ -57,6 +57,7 @@ def main():
         import ctypes
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('screencut.capture.app.v1')
     app = ScreenCut(sys.argv)
+    app.setStyleSheet("QToolTip { background-color: #1e293b; color: #f8fafc; border: 1px solid #475569; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }")
     
     from resources.icon_utils import create_svg_icon, SVG_APP_ICON
     app_icon = create_svg_icon(SVG_APP_ICON, 64, 64)
@@ -69,7 +70,7 @@ def main():
         docs_dir = get_documents_folder()
         library_dir = os.path.join(docs_dir, "My ScreenCut Library")
         os.makedirs(library_dir, exist_ok=True)
-        from ui.image_editor import ImageEditor
+        from editor.editor_main import ImageEditor
         from PySide6.QtGui import QImage
         file_path = None
         for arg in sys.argv[1:]:
@@ -84,10 +85,20 @@ def main():
 
     # Single Instance Check via QLockFile (reliable cross-platform cleanup)
     from PySide6.QtCore import QLockFile, QDir
+    from PySide6.QtNetwork import QLocalServer, QLocalSocket
     lock_path = os.path.join(QDir.tempPath(), "ScreenCut_Unique_Instance.lock")
     lock_file = QLockFile(lock_path)
     lock_file.setStaleLockTime(1000)
     if not lock_file.tryLock(100):
+        sock = QLocalSocket()
+        sock.connectToServer("ScreenCut_IPC_Server")
+        if sock.waitForConnected(500):
+            msg = "OPEN_EDITOR" if ("--editor" in sys.argv or "-e" in sys.argv) else "SHOW_NORMAL"
+            sock.write(msg.encode('utf-8'))
+            sock.flush()
+            sock.waitForBytesWritten(500)
+            sock.disconnectFromServer()
+            sys.exit(0)
         from PySide6.QtWidgets import QMessageBox
         QMessageBox.warning(None, "ScreenCut", "ScreenCut is already running in the background.\nPlease check your System Tray.")
         sys.exit(0)
@@ -103,7 +114,7 @@ def main():
 
     # Pre-warm hardware video codec detection in the background
     import threading
-    from core.video_codecs import detect_available_hw_encoders
+    from core.capture_codecs import detect_available_hw_encoders
     threading.Thread(target=detect_available_hw_encoders, daemon=True).start()
 
     window = Main(library_dir)
@@ -146,7 +157,25 @@ def main():
         lambda reason: window.showNormal() if reason == QSystemTrayIcon.ActivationReason.DoubleClick else None
     )
 
-    window.show()
+    QLocalServer.removeServer("ScreenCut_IPC_Server")
+    ipc_server = QLocalServer()
+    ipc_server.listen("ScreenCut_IPC_Server")
+    def handle_ipc_connection():
+        sock = ipc_server.nextPendingConnection()
+        if sock and sock.waitForReadyRead(500):
+            msg = bytes(sock.readAll()).decode('utf-8')
+            if msg == "OPEN_EDITOR":
+                window.open_editor()
+            elif msg == "SHOW_NORMAL":
+                window.showNormal()
+                window.activateWindow()
+    ipc_server.newConnection.connect(handle_ipc_connection)
+    app._ipc_server = ipc_server
+
+    if "--editor" in sys.argv or "-e" in sys.argv:
+        window.open_editor()
+    else:
+        window.show()
     app.exec()
 
 if __name__ == "__main__":

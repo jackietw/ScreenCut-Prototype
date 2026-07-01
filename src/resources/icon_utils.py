@@ -57,7 +57,21 @@ def create_svg_icon(svg_string, width=24, height=24):
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
     renderer.render(painter)
     painter.end()
-    return QIcon(pixmap)
+    
+    icon = QIcon(pixmap)
+    
+    disabled_svg = svg_string.replace('#FFFFFF', '#666666').replace('#ffffff', '#666666').replace('#F3F3F3', '#666666').replace('#f3f3f3', '#666666')
+    renderer_disabled = QSvgRenderer(QByteArray(disabled_svg.encode('utf-8')))
+    disabled_pixmap = QPixmap(width, height)
+    disabled_pixmap.fill(Qt.GlobalColor.transparent)
+    painter_disabled = QPainter(disabled_pixmap)
+    painter_disabled.setRenderHint(QPainter.RenderHint.Antialiasing)
+    renderer_disabled.render(painter_disabled)
+    painter_disabled.end()
+    
+    icon.addPixmap(disabled_pixmap, QIcon.Mode.Disabled, QIcon.State.Off)
+    icon.addPixmap(disabled_pixmap, QIcon.Mode.Disabled, QIcon.State.On)
+    return icon
 
 def apply_dark_titlebar(window):
     try:

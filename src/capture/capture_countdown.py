@@ -5,7 +5,7 @@
 
 import logging
 from PySide6.QtCore import Qt, QTimer
-from ui.countdown_ui import CountdownUI
+from capture.capture_countdown_ui import CountdownUI
 
 class Countdown(CountdownUI):
     def __init__(self, seconds=5):

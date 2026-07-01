@@ -363,7 +363,7 @@ class ImageCaptureManager:
         from config import load_config
         config = load_config()
         if config.get("toggles", {}).get("Preview in Editor", True):
-            from ui.image_editor import ImageEditor
+            from editor.editor_main import ImageEditor
             ImageCaptureManager._active_editor = ImageEditor.get_instance(library_dir, initial_image=cropped_image, current_filepath=filepath)
             return None
 

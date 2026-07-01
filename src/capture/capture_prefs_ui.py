@@ -146,7 +146,7 @@ class PreferencesUI(QDialog):
         # 1080p Limit
         limit_layout = QHBoxLayout()
         limit_lbl = QLabel("Limit Video to 1080p:")
-        from widgets.switch import Switch
+        from widgets.capture_switch import Switch
         self.toggle_1080p = Switch()
         self.toggle_1080p.setChecked(self.config_data.get("limit_1080p", True))
         

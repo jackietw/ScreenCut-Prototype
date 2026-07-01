@@ -32,7 +32,7 @@ class FloatingToolbar(QWidget):
         bg_layout.addWidget(self.lbl_size)
         
         from resources.icon_utils import create_svg_icon, SVG_DONE, SVG_CANCEL
-        from resources.button_utils import create_toolbar_button
+        from widgets.capture_buttons import create_toolbar_button
         
         btn_done = create_toolbar_button(icon=create_svg_icon(SVG_DONE), icon_size=QSize(20, 20), color_theme="blue", padding="6px 15px")
         btn_cancel = create_toolbar_button(icon=create_svg_icon(SVG_CANCEL), icon_size=QSize(20, 20), color_theme="cancel", padding="6px 15px")
@@ -67,7 +67,7 @@ class ScrollCaptureToolbar(QWidget):
         hbox_btns = QHBoxLayout()
         hbox_btns.setSpacing(8)
         
-        from resources.button_utils import create_toolbar_button
+        from widgets.capture_buttons import create_toolbar_button
         self.btn_done = create_toolbar_button("Finish", color_theme="blue", padding="6px 15px")
         self.btn_done.clicked.connect(self.finish_requested.emit)
         
@@ -116,7 +116,7 @@ class VideoToolbar(QWidget):
         bg_layout.setSpacing(8)
         
         from resources.icon_utils import create_svg_icon, SVG_RECORD, SVG_STOP, SVG_MOUSE, SVG_MIC, SVG_MIC_OFF, SVG_SYS_AUDIO, SVG_SYS_AUDIO_OFF, SVG_CANCEL
-        from resources.button_utils import create_toolbar_button, SplitMenuButton
+        from widgets.capture_buttons import create_toolbar_button, SplitMenuButton
         from config import load_config
         cfg = load_config()
         toggles_cfg = cfg.get("toggles", {})

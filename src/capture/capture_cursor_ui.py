@@ -5,7 +5,7 @@
 
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QColorDialog
 from PySide6.QtCore import Qt, Signal
-from widgets.switch import Switch
+from widgets.capture_switch import Switch
 from config import load_config, save_config
 
 class ColorButton(QPushButton):
