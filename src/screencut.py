@@ -5,6 +5,7 @@
 
 import sys
 import os
+import logging
 
 from PySide6.QtWidgets import QApplication, QSystemTrayIcon, QMenu
 from PySide6.QtGui import QAction
@@ -17,7 +18,6 @@ def get_documents_folder():
 
 def global_exception_handler(exc_type, exc_value, exc_tb):
     import traceback
-    import logging
     error_msg = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
     try:
         from config import get_app_config_dir
@@ -144,8 +144,32 @@ def main():
     
     tray_menu.addSeparator()
     
+    def cleanup_before_quit():
+        try:
+            from editor.editor_main import ImageEditor
+            if ImageEditor._instance and hasattr(ImageEditor._instance, 'canvas'):
+                canvas = ImageEditor._instance.canvas
+                if hasattr(canvas, '_auto_save_timer') and canvas._auto_save_timer.isActive():
+                    canvas._auto_save_timer.stop()
+                    canvas._perform_auto_save()
+        except Exception as e:
+            logging.debug("Error flushing editor auto-save on quit: %s", e, exc_info=True)
+
+        try:
+            from core.capture_video import VideoCaptureManager
+            from capture.capture_overlay import Overlay
+            vm = VideoCaptureManager._active_instance or getattr(Overlay, 'video_manager', None)
+            if vm and hasattr(vm, 'thread') and vm.thread and vm.thread.isRunning():
+                vm.stop_capture()
+                vm.thread.wait(3000)
+        except Exception as e:
+            logging.debug("Error stopping active video capture on quit: %s", e, exc_info=True)
+
+    app.aboutToQuit.connect(cleanup_before_quit)
+
     def force_quit():
         tray_icon.hide()
+        cleanup_before_quit()
         try:
             window.close()
         except Exception as e:

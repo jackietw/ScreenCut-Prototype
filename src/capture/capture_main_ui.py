@@ -165,6 +165,26 @@ class MainUI(QMainWindow):
         row = QHBoxLayout()
         lbl = QLabel(label_text)
         toggle = Switch()
+        if key_name == "Record Microphone":
+            try:
+                import soundcard as sc
+                mics = sc.all_microphones(include_loopback=False)
+                if not mics:
+                    is_checked = False
+                    toggle.setEnabled(False)
+                    lbl.setEnabled(False)
+            except Exception:
+                pass
+        elif key_name == "Record System Audio":
+            try:
+                import soundcard as sc
+                speakers = sc.all_speakers()
+                if not speakers:
+                    is_checked = False
+                    toggle.setEnabled(False)
+                    lbl.setEnabled(False)
+            except Exception:
+                pass
         toggle.setChecked(is_checked)
         self.toggles[key_name] = toggle
         

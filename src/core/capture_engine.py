@@ -361,11 +361,9 @@ def save_image_as_scut(q_img: QImage, filepath: str):
         thumb_b64 = t_ba.toBase64().data().decode('ascii')
         
         data = {
-            "version": "1.0",
+            "version": PROJECT_VERSION,
             "timestamp": time.time(),
-            "image": img_b64,
             "image_base64": img_b64,
-            "thumbnail": thumb_b64,
             "thumbnail_base64": thumb_b64,
             "annotations": []
         }

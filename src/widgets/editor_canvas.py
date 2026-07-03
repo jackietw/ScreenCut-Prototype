@@ -17,6 +17,7 @@ from PySide6.QtGui import QImage, QPixmap, QPainter, QColor, QPen, QBrush, QFont
 from core.editor_engine import calculate_expansion, apply_canvas_expansion, calculate_temporary_size, constrain_square
 from core.editor_models import AnnotationObject, ArrowObject, ShapeObject, TextObject, StepObject
 from widgets.editor_text import CanvasTextEdit
+from version import PROJECT_VERSION
 
 
 def handle_canvas_wheel_event(widget, event):
@@ -184,9 +185,7 @@ class ImageCanvas(QWidget):
             data = {
                 "version": PROJECT_VERSION,
                 "timestamp": time.strftime("%Y%m%d_%H%M%S") + f"_{int(time.time()*1000)%1000:03d}",
-                "image": img_b64,
                 "image_base64": img_b64,
-                "thumbnail": thumb_b64,
                 "thumbnail_base64": thumb_b64,
                 "annotations": [obj.to_dict() for obj in self.annotations],
                 "default_canvas_w": getattr(self, 'default_canvas_w', self.base_image.width()),

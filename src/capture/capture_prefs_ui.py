@@ -127,7 +127,7 @@ class PreferencesUI(QDialog):
         
         # Audio Source
         aud_layout = QHBoxLayout()
-        aud_lbl = QLabel("Audio Source:")
+        self.lbl_audio = QLabel("Audio Source:")
         self.cb_audio = QComboBox()
         
         # Load audio devices dynamically
@@ -140,7 +140,7 @@ class PreferencesUI(QDialog):
         elif self.cb_audio.count() > 0:
             self.cb_audio.setCurrentIndex(0)
             
-        aud_layout.addWidget(aud_lbl)
+        aud_layout.addWidget(self.lbl_audio)
         aud_layout.addWidget(self.cb_audio)
         main_layout.addLayout(aud_layout)
         

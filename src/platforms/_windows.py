@@ -99,13 +99,11 @@ class WindowsPlatform(PlatformBase):
             from config import load_config
             cfg = load_config()
             hotkeys = cfg.get("hotkeys", {})
-            if config_key and config_key in hotkeys:
-                hk = hotkeys[config_key]
+            for k, hk in hotkeys.items():
                 if isinstance(hk, dict) and hk.get("vk") == vk and hk.get("modifiers") == mods:
-                    return True
-            for hk in hotkeys.values():
-                if isinstance(hk, dict) and hk.get("vk") == vk and hk.get("modifiers") == mods:
-                    return True
+                    if config_key and k == config_key:
+                        return True
+                    return False
         except Exception as e:
             logging.debug("Error checking hotkey config in check_hotkey_conflict: %s", e, exc_info=True)
 

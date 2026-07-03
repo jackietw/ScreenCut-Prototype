@@ -214,8 +214,11 @@ class VideoCaptureThread(QThread):
 
 
 class VideoCaptureManager(QObject):
+    _active_instance = None
+
     def __init__(self, rect, library_dir, cw_x=None, cw_y=None, override_settings=None, existing_toolbar=None, logical_rect=None):
         super().__init__()
+        VideoCaptureManager._active_instance = self
         self.rect = rect
         self.logical_rect = logical_rect if logical_rect else rect
         self.library_dir = library_dir
@@ -345,12 +348,17 @@ class VideoCaptureManager(QObject):
         self.stop_capture()
 
     def on_finished(self, path):
+        VideoCaptureManager._active_instance = None
         if self.is_cancelled:
             if os.path.exists(path):
-                os.remove(path)
+                try: os.remove(path)
+                except Exception: pass
         else:
             from widgets.common_notification import Notification
-            # Save reference to prevent GC
-            self.__class__._active_toast = Notification(f"Video saved successfully:\n{os.path.basename(path)}")
-            self.__class__._active_toast.show_toast()
+            if os.path.exists(path) and os.path.getsize(path) > 0:
+                self.__class__._active_toast = Notification(f"Video saved successfully:\n{os.path.basename(path)}")
+                self.__class__._active_toast.show_toast()
+            else:
+                self.__class__._active_toast = Notification("Video capture failed to save.", is_error=True)
+                self.__class__._active_toast.show_toast()
         self.deleteLater()

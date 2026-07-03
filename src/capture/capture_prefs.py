@@ -76,10 +76,14 @@ class Preferences(PreferencesUI):
         if not mics:
             self.cb_audio.addItem("No Microphone Detected")
             self.cb_audio.setEnabled(False)
+            if hasattr(self, 'lbl_audio'):
+                self.lbl_audio.setEnabled(False)
         else:
             for m in mics:
                 self.cb_audio.addItem(m.name)
             self.cb_audio.setEnabled(True)
+            if hasattr(self, 'lbl_audio'):
+                self.lbl_audio.setEnabled(True)
 
     def save_and_close(self):
         cfg = load_config()

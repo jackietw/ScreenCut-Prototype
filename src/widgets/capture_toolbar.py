@@ -198,6 +198,8 @@ class VideoToolbar(QWidget):
                 no_act = QAction("No Microphone Detected", self)
                 no_act.setEnabled(False)
                 self.audio_split.addAction(no_act)
+                self.audio_split.setEnabled(False)
+                self.btn_audio.setChecked(False)
             else:
                 for m in mics:
                     dev_name = m.name
@@ -225,6 +227,13 @@ class VideoToolbar(QWidget):
         )
         self.btn_sys_audio.setFixedHeight(40)
         self.btn_sys_audio.toggled.connect(self._on_sys_audio_toggled)
+        try:
+            import soundcard as sc
+            if not sc.all_speakers():
+                self.btn_sys_audio.setChecked(False)
+                self.btn_sys_audio.setEnabled(False)
+        except Exception:
+            pass
         
         # Info label (Size or Time)
         self.lbl_info = QLabel("0 x 0")

@@ -131,9 +131,17 @@ class MacOSPlatform(PlatformBase):
     # --- Global Hotkeys ---
     @staticmethod
     def check_hotkey_conflict(mods: int, vk: int, config_key: str = None) -> bool:
-        """On macOS pynput does not provide a conflict-check mechanism.
-        We optimistically assume no conflict; duplicate registrations are
-        handled gracefully by pynput."""
+        try:
+            from config import load_config
+            cfg = load_config()
+            hotkeys = cfg.get("hotkeys", {})
+            for k, hk in hotkeys.items():
+                if isinstance(hk, dict) and hk.get("vk") == vk and hk.get("modifiers") == mods:
+                    if config_key and k == config_key:
+                        return True
+                    return False
+        except Exception as e:
+            logging.debug("Error checking hotkey config on macOS: %s", e, exc_info=True)
         return True
 
     @staticmethod

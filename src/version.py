@@ -6,5 +6,5 @@
 # Centralized version information for ScreenCut modules
 
 PROJECT_VERSION = "2026"
-CAPTURE_VERSION = f"{PROJECT_VERSION}.1.5"
+CAPTURE_VERSION = f"{PROJECT_VERSION}.1.6"
 EDITOR_VERSION = f"{PROJECT_VERSION}.1.5"

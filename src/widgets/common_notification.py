@@ -7,7 +7,7 @@ from PySide6.QtWidgets import QWidget, QLabel, QVBoxLayout, QApplication
 from PySide6.QtCore import Qt, QTimer
 
 class Notification(QWidget):
-    def __init__(self, message, parent=None, duration=3000):
+    def __init__(self, message, parent=None, duration=3000, is_error=False):
         super().__init__(parent)
         self.setWindowFlags(Qt.WindowType.ToolTip | Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
@@ -19,7 +19,8 @@ class Notification(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         
         self.bg = QWidget()
-        self.bg.setStyleSheet("background-color: rgba(0, 0, 0, 180); border-radius: 8px; padding: 15px 30px;")
+        bg_color = "rgba(180, 40, 40, 210)" if is_error else "rgba(0, 0, 0, 180)"
+        self.bg.setStyleSheet(f"background-color: {bg_color}; border-radius: 8px; padding: 15px 30px;")
         bg_layout = QVBoxLayout(self.bg)
         
         self.lbl_msg = QLabel(message)
