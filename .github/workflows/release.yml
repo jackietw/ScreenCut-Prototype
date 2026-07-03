@@ -1,0 +1,263 @@
+name: Build and Release ScreenCut
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  MACOSX_DEPLOYMENT_TARGET: '12.0'
+
+jobs:
+  build:
+    name: Build (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows-x64
+            os: windows-latest
+            arch: x64
+            artifact_name: ScreenCut-Windows-x64.msi
+          - name: macOS-arm64-AppleSilicon
+            os: macos-latest
+            arch: arm64
+            artifact_name: ScreenCut-macOS-arm64.dmg
+          - name: macOS-x64-Intel
+            os: macos-latest
+            arch: x64
+            artifact_name: ScreenCut-macOS-x64.dmg
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+
+      - name: Parse Version from Tag
+        id: ver
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          if [[ "$GITHUB_REF" != refs/tags/* ]]; then
+            TAG="2026.1.6"
+          fi
+          echo "version=$TAG" >> $GITHUB_OUTPUT
+          WIX_VER=$(echo "$TAG" | sed -E 's/^20([0-9]{2})\./\1./')
+          if [[ "$WIX_VER" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            WIX_VER="${WIX_VER}.0"
+          fi
+          echo "wix_version=$WIX_VER" >> $GITHUB_OUTPUT
+          MAC_VER=$(echo "$TAG" | sed -E 's/^20([0-9]{2})\./\1./')
+          echo "mac_version=$MAC_VER" >> $GITHUB_OUTPUT
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          architecture: ${{ matrix.arch }}
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install zstandard ordered-set
+
+      - name: Build Capture Tray with Nuitka (Windows)
+        if: runner.os == 'Windows'
+        uses: Nuitka/Nuitka-Action@main
+        with:
+          nuitka-version: main
+          script-name: src/screencut.py
+          mode: standalone
+          enable-plugins: pyside6
+          windows-console-mode: disable
+          windows-icon-from-ico: src/resources/icons/cap.ico
+          company-name: Jackie
+          product-name: ScreenCut
+          file-version: ${{ steps.ver.outputs.version }}
+          output-dir: build
+
+      - name: Build Editor with Nuitka (Windows)
+        if: runner.os == 'Windows'
+        uses: Nuitka/Nuitka-Action@main
+        with:
+          nuitka-version: main
+          script-name: src/editor/editor_main.py
+          mode: standalone
+          enable-plugins: pyside6
+          windows-console-mode: disable
+          windows-icon-from-ico: src/resources/icons/cap.ico
+          company-name: Jackie
+          product-name: ScreenCutEditor
+          file-version: ${{ steps.ver.outputs.version }}
+          output-dir: build
+
+      - name: Build Capture Tray with Nuitka (macOS)
+        if: runner.os == 'macOS'
+        uses: Nuitka/Nuitka-Action@main
+        with:
+          nuitka-version: main
+          script-name: src/screencut.py
+          mode: app
+          enable-plugins: pyside6
+          macos-app-console-mode: disable
+          macos-app-icon: src/resources/icons/cap.png
+          macos-app-version: ${{ steps.ver.outputs.mac_version }}
+          output-dir: build
+
+      - name: Build Editor with Nuitka (macOS)
+        if: runner.os == 'macOS'
+        uses: Nuitka/Nuitka-Action@main
+        with:
+          nuitka-version: main
+          script-name: src/editor/editor_main.py
+          mode: app
+          enable-plugins: pyside6
+          macos-app-console-mode: disable
+          macos-app-icon: src/resources/icons/cap.png
+          macos-app-version: ${{ steps.ver.outputs.mac_version }}
+          output-dir: build
+
+      - name: Package Windows MSI & Generate SHA256
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          # Merge editor_main.exe and any unique libraries into screencut.dist
+          Copy-Item -Path "build\editor_main.dist\*" -Destination "build\screencut.dist\" -Recurse -Force
+          if (Test-Path "build\screencut.dist\editor_main.exe") {
+            Rename-Item -Path "build\screencut.dist\editor_main.exe" -NewName "ScreenCutEditor.exe"
+          } else {
+            Write-Error "ERROR: editor_main.exe not found in build\screencut.dist!"
+            exit 1
+          }
+
+          # Find pre-installed WiX Toolset on GitHub Actions runner
+          $wixBin = Get-ChildItem -Path "C:\Program Files (x86)\WiX Toolset*" | Select-Object -First 1
+          if ($wixBin) { $env:Path += ";" + $wixBin.FullName + "\bin" }
+
+          # Harvest directory files into components.wxs
+          heat.exe dir "build\screencut.dist" -gg -scom -sreg -sfrag -srd -dr INSTALLFOLDER -cg AppComponents -var var.SourceDir -out components.wxs
+
+          # Create main wxs installer schema
+          $mainWxs = @"
+          <?xml version="1.0" encoding="UTF-8"?>
+          <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+            <Product Id="*" Name="ScreenCut" Language="1033" Version="${{ steps.ver.outputs.wix_version }}" Manufacturer="Jackie" UpgradeCode="84b9e288-75b2-4d8e-be3c-1b6c7a409f8d">
+              <Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine" />
+              <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+              <MediaTemplate EmbedCab="yes" />
+              <Feature Id="ProductFeature" Title="ScreenCut" Level="1">
+                <ComponentGroupRef Id="AppComponents" />
+                <ComponentRef Id="ApplicationShortcut" />
+                <ComponentRef Id="DesktopShortcut" />
+              </Feature>
+            </Product>
+            <Fragment>
+              <Directory Id="TARGETDIR" Name="SourceDir">
+                <Directory Id="ProgramFiles64Folder">
+                  <Directory Id="INSTALLFOLDER" Name="ScreenCut" />
+                </Directory>
+                <Directory Id="ProgramMenuFolder">
+                  <Directory Id="ApplicationProgramsFolder" Name="ScreenCut" />
+                </Directory>
+                <Directory Id="DesktopFolder" Name="Desktop" />
+              </Directory>
+            </Fragment>
+            <Fragment>
+              <DirectoryRef Id="ApplicationProgramsFolder">
+                <Component Id="ApplicationShortcut" Guid="e1c8498f-5188-4c16-83eb-5dfa40237c04">
+                  <Shortcut Id="ApplicationStartMenuShortcut" Name="ScreenCut" Description="ScreenCut Capture Tray" Target="[INSTALLFOLDER]screencut.exe" WorkingDirectory="INSTALLFOLDER" />
+                  <Shortcut Id="EditorStartMenuShortcut" Name="ScreenCut Editor" Description="ScreenCut Editor" Target="[INSTALLFOLDER]ScreenCutEditor.exe" WorkingDirectory="INSTALLFOLDER" />
+                  <RemoveFolder Id="CleanUpShortCut" Directory="ApplicationProgramsFolder" On="uninstall" />
+                  <RegistryValue Root="HKCU" Key="Software\Jackie\ScreenCut" Name="installed" Type="integer" Value="1" KeyPath="yes" />
+                </Component>
+              </DirectoryRef>
+            </Fragment>
+            <Fragment>
+              <DirectoryRef Id="DesktopFolder">
+                <Component Id="DesktopShortcut" Guid="f2d95a90-6299-4d27-94fa-6eab51348d15">
+                  <Shortcut Id="ApplicationDesktopShortcut" Name="ScreenCut" Description="ScreenCut Capture Tray" Target="[INSTALLFOLDER]screencut.exe" WorkingDirectory="INSTALLFOLDER" />
+                  <Shortcut Id="EditorDesktopShortcut" Name="ScreenCut Editor" Description="ScreenCut Editor" Target="[INSTALLFOLDER]ScreenCutEditor.exe" WorkingDirectory="INSTALLFOLDER" />
+                  <RegistryValue Root="HKCU" Key="Software\Jackie\ScreenCut" Name="desktop_installed" Type="integer" Value="1" KeyPath="yes" />
+                </Component>
+              </DirectoryRef>
+            </Fragment>
+          </Wix>
+          "@
+          Set-Content -Path main.wxs -Value $mainWxs -Encoding UTF8
+
+          # Compile and link MSI
+          candle.exe -dSourceDir="build\screencut.dist" main.wxs components.wxs
+          light.exe -out ${{ matrix.artifact_name }} main.wixobj components.wixobj -b "build\screencut.dist" -sval
+
+          # Also create Portable Green Zip version
+          $zipName = "${{ matrix.artifact_name }}".Replace(".msi", ".zip")
+          Compress-Archive -Path "build\screencut.dist\*" -DestinationPath $zipName
+
+      - name: Package macOS DMG
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p build/dmg_stage
+          mv build/screencut.app build/dmg_stage/ScreenCut.app
+          mv build/editor_main.app build/dmg_stage/ScreenCutEditor.app
+          npm install --global create-dmg
+          create-dmg build/dmg_stage ${{ matrix.artifact_name }} || true
+          if [ ! -f ${{ matrix.artifact_name }} ]; then
+            hdiutil create -volname "ScreenCut" -srcfolder build/dmg_stage -ov -format UDZO ${{ matrix.artifact_name }}
+          fi
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.name }}
+          path: |
+            ScreenCut-*.*
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+
+      - name: Download All Build Artifacts
+        uses: actions/download-artifact@v7
+        with:
+          path: dist
+
+      - name: Generate Unified Hash File
+        run: |
+          cd dist
+          find . -type f \( -name "*.msi" -o -name "*.dmg" -o -name "*.zip" \) -exec sha256sum {} + | sed 's|.*/||' > ../hashes.sha256
+
+      - name: Extract Version from Tag
+        id: version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          echo "tag_version=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Get Changelog Entry
+        id: changelog
+        uses: mindsers/changelog-reader-action@v2
+        with:
+          version: ${{ steps.version.outputs.tag_version }}
+          path: ./CHANGELOG.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          body: ${{ steps.changelog.outputs.changes }}
+          files: |
+            dist/*/*
+            hashes.sha256

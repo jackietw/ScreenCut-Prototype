@@ -18,3 +18,8 @@ ai_files/
 
 # Todo
 .Todo
+
+# Build outputs
+build/
+dist/
+*.exe
