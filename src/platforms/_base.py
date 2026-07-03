@@ -40,7 +40,7 @@ class PlatformBase:
 
     # --- Global Hotkeys ---
     @staticmethod
-    def check_hotkey_conflict(mods: int, vk: int) -> bool:
+    def check_hotkey_conflict(mods: int, vk: int, config_key: str = None) -> bool:
         """
         Return True if the hotkey (mods + vk) can be registered (no conflict).
         Return False if another application already owns it.

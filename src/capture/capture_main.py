@@ -5,6 +5,7 @@
 
 from version import CAPTURE_VERSION
 import sys
+import logging
 from platforms import Platform
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
 from PySide6.QtCore import Qt
@@ -132,8 +133,8 @@ class Main(MainUI):
             if ImageEditor._instance and ImageEditor._instance.isVisible():
                 ImageEditor._instance._hidden_by_capture = True
                 ImageEditor._instance.hide()
-        except Exception:
-            pass
+        except Exception as e:
+            logging.debug("Error hiding ImageEditor before capture: %s", e, exc_info=True)
 
     def start_capture(self):
         self.hide()
@@ -185,16 +186,16 @@ class Main(MainUI):
                 ImageEditor._instance._hidden_by_capture = False
                 ImageEditor._instance.show()
                 ImageEditor._instance.raise_()
-        except Exception:
-            pass
+        except Exception as e:
+            logging.debug("Error restoring ImageEditor after capture: %s", e, exc_info=True)
 
         try:
             from editor.editor_main import ImageEditor
             if ImageEditor._instance and ImageEditor._instance.isVisible():
                 self.hide()
                 return
-        except Exception:
-            pass
+        except Exception as e:
+            logging.debug("Error checking ImageEditor visibility: %s", e, exc_info=True)
 
         self.show()
         self.activateWindow()

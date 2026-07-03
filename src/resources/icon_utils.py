@@ -110,8 +110,9 @@ def apply_dark_titlebar(window):
         ctypes.windll.dwmapi.DwmSetWindowAttribute(
             ctypes.c_void_p(hwnd), ctypes.c_int(19), ctypes.byref(val), ctypes.sizeof(val)
         )
-    except Exception:
-        pass
+    except Exception as e:
+        import logging
+        logging.debug("apply_dark_titlebar DwmSetWindowAttribute failed: %s", e, exc_info=True)
 
 def export_app_icons(target_dir: str):
     import os

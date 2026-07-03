@@ -39,7 +39,7 @@ class Hotkey(QLabel):
                 vk = hk_data.get("vk", 0)
                 mods = hk_data.get("modifiers", 0)
                 if vk:
-                    self.valid = Platform.check_hotkey_conflict(mods, vk)
+                    self.valid = Platform.check_hotkey_conflict(mods, vk, self.config_key)
 
         self.setText(self.current_hotkey)
         self.update_style(self.valid)
@@ -99,7 +99,7 @@ class Hotkey(QLabel):
         readable_hotkey = key_seq.toString(QKeySequence.SequenceFormat.NativeText)
 
         # Test hotkey availability via platform abstraction
-        available = Platform.check_hotkey_conflict(fsModifiers, vk)
+        available = Platform.check_hotkey_conflict(fsModifiers, vk, self.config_key)
 
         self.current_hotkey = readable_hotkey
         self.setText(self.current_hotkey)

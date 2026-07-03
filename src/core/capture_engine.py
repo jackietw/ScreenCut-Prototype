@@ -36,8 +36,9 @@ class BorderOverlay(QWidget):
             import ctypes
             WDA_EXCLUDEFROMCAPTURE = 0x00000011
             ctypes.windll.user32.SetWindowDisplayAffinity(int(self.winId()), WDA_EXCLUDEFROMCAPTURE)
-        except Exception:
-            pass
+        except Exception as e:
+            import logging
+            logging.debug("SetWindowDisplayAffinity failed in ScrollCaptureManager: %s", e, exc_info=True)
         
         self.ratio = QApplication.primaryScreen().devicePixelRatio()
         # Keep a small padding (2px) for sides/bottom, but more for top to draw the size text
@@ -169,8 +170,9 @@ class ScrollCaptureManager(QWidget):
             import ctypes
             WDA_EXCLUDEFROMCAPTURE = 0x00000011
             ctypes.windll.user32.SetWindowDisplayAffinity(int(self.winId()), WDA_EXCLUDEFROMCAPTURE)
-        except Exception:
-            pass
+        except Exception as e:
+            import logging
+            logging.debug("SetWindowDisplayAffinity failed in ScrollCaptureOverlay: %s", e, exc_info=True)
         
         # Init MSS
         self.sct = mss.mss()
@@ -279,8 +281,9 @@ class ScrollCaptureManager(QWidget):
         if hasattr(self, 'sct') and self.sct:
             try:
                 self.sct.close()
-            except Exception:
-                pass
+            except Exception as e:
+                import logging
+                logging.debug("Failed to close sct in ScrollCaptureOverlay: %s", e, exc_info=True)
             self.sct = None
 
     def closeEvent(self, event):
@@ -322,8 +325,9 @@ class ScrollCaptureManager(QWidget):
                 from editor.editor_main import ImageEditor
                 if ImageEditor._instance:
                     ImageEditor._instance._hidden_by_capture = False
-            except Exception:
-                pass
+            except Exception as e:
+                import logging
+                logging.debug("Error updating ImageEditor instance visibility: %s", e, exc_info=True)
 
             if config.get("toggles", {}).get("Preview in Editor", True):
                 from editor.editor_main import ImageEditor
@@ -370,7 +374,8 @@ def save_image_as_scut(q_img: QImage, filepath: str):
             json.dump(data, f, ensure_ascii=False, indent=2)
         os.replace(tmp_filepath, filepath)
     except Exception as e:
-        print(f"Error saving scut capture: {e}")
+        import logging
+        logging.error("Error saving scut capture: %s", e, exc_info=True)
 
 
 class ImageCaptureManager:
@@ -397,8 +402,9 @@ class ImageCaptureManager:
             from editor.editor_main import ImageEditor
             if ImageEditor._instance:
                 ImageEditor._instance._hidden_by_capture = False
-        except Exception:
-            pass
+        except Exception as e:
+            import logging
+            logging.debug("Error restoring editor visibility after static capture: %s", e, exc_info=True)
 
         if config.get("toggles", {}).get("Preview in Editor", True):
             from editor.editor_main import ImageEditor

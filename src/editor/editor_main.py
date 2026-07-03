@@ -192,8 +192,9 @@ class ImageEditor(ImageEditorUI):
                 if thumb_b64:
                     ba = QByteArray.fromBase64(thumb_b64.encode('ascii'))
                     pix.loadFromData(ba, "PNG")
-            except Exception:
-                pass
+            except Exception as e:
+                import logging
+                logging.debug("Error loading thumbnail for %s: %s", filepath, e, exc_info=True)
                 
             if not pix.isNull():
                 thumb = pix.scaled(96, 58, Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation)

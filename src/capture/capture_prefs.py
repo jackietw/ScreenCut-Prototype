@@ -7,7 +7,7 @@ import logging
 from PySide6.QtWidgets import QDialog
 from PySide6.QtCore import Qt
 from config import load_config, save_config
-import sounddevice as sd
+import soundcard as sc
 from capture.capture_prefs_ui import PreferencesUI
 
 class Preferences(PreferencesUI):
@@ -38,8 +38,8 @@ class Preferences(PreferencesUI):
         if encoders:
             try:
                 self.chk_hw_accel.toggled.disconnect()
-            except Exception:
-                pass
+            except Exception as e:
+                logging.debug("Disconnecting chk_hw_accel toggled failed: %s", e, exc_info=True)
             self.chk_hw_accel.setText("Hardware Acceleration:")
             self.chk_hw_accel.setEnabled(True)
             self.cb_hw_encoder.clear()
@@ -66,19 +66,25 @@ class Preferences(PreferencesUI):
             self.cb_hw_encoder.setEnabled(False)
 
     def load_audio_devices(self):
+        self.cb_audio.clear()
+        mics = []
         try:
-            devices = sd.query_devices()
-            for d in devices:
-                if d['max_input_channels'] > 0:
-                    self.cb_audio.addItem(d['name'])
-            self.cb_audio.addItem("System Audio (WASAPI Loopback)")
+            mics = sc.all_microphones(include_loopback=False)
         except Exception as e:
-            logging.warning("Error loading sound devices: %s", e)
+            logging.warning("Error loading sound devices: %s", e, exc_info=True)
+            
+        if not mics:
+            self.cb_audio.addItem("No Microphone Detected")
+            self.cb_audio.setEnabled(False)
+        else:
+            for m in mics:
+                self.cb_audio.addItem(m.name)
+            self.cb_audio.setEnabled(True)
 
     def save_and_close(self):
         cfg = load_config()
         cfg["video_compression"] = self.cb_compression.currentText()
-        cfg["audio_source"] = self.cb_audio.currentText()
+        cfg["audio_source"] = self.cb_audio.currentText() if self.cb_audio.isEnabled() else ""
         cfg["limit_1080p"] = self.toggle_1080p.isChecked()
         cfg["hw_accel"] = self.chk_hw_accel.isChecked()
         cfg["hw_encoder"] = self.cb_hw_encoder.currentData() or ""

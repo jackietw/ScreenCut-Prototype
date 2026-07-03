@@ -24,8 +24,8 @@ def global_exception_handler(exc_type, exc_value, exc_tb):
         crash_log_path = os.path.join(get_app_config_dir(), "crash.log")
         with open(crash_log_path, "a", encoding="utf-8") as f:
             f.write(error_msg + "\n")
-    except Exception:
-        pass
+    except Exception as e:
+        logging.debug("Failed to write crash log: %s", e, exc_info=True)
     logging.critical(error_msg)
     # Only show dialog in debug mode
     from config import is_debug_mode
@@ -148,8 +148,8 @@ def main():
         tray_icon.hide()
         try:
             window.close()
-        except Exception:
-            pass
+        except Exception as e:
+            logging.debug("Exception while closing main window: %s", e, exc_info=True)
         app.quit()
         
     quit_action = QAction("Quit", window)

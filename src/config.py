@@ -48,6 +48,7 @@ def setup_logging():
     - debug_mode=False -> WARNING level only, output to log file (silent on console)
     """
     import logging
+    from logging.handlers import RotatingFileHandler
     import os
 
     log_dir = os.path.dirname(CONFIG_PATH)
@@ -56,7 +57,7 @@ def setup_logging():
 
     level = logging.DEBUG if is_debug_mode() else logging.WARNING
 
-    handlers = [logging.FileHandler(log_path, encoding="utf-8")]
+    handlers = [RotatingFileHandler(log_path, maxBytes=2*1024*1024, backupCount=2, encoding="utf-8")]
     if is_debug_mode():
         handlers.append(logging.StreamHandler())
 
@@ -82,8 +83,9 @@ def load_config():
             try:
                 with open(old_path, "r", encoding="utf-8") as f:
                     initial_config = json.load(f)
-            except Exception:
-                pass
+            except Exception as e:
+                import logging
+                logging.debug("Failed reading legacy config: %s", e, exc_info=True)
         save_config(initial_config)
         return copy.deepcopy(initial_config)
 
@@ -97,7 +99,7 @@ def load_config():
             return copy.deepcopy(_config_cache)
     except Exception as e:
         import logging
-        logging.warning("Error loading config: %s", e)
+        logging.warning("Error loading config: %s", e, exc_info=True)
         return {}
 
 def save_config(data):
@@ -111,4 +113,4 @@ def save_config(data):
             _config_mtime = os.path.getmtime(CONFIG_PATH)
     except Exception as e:
         import logging
-        logging.warning("Error saving config: %s", e)
+        logging.warning("Error saving config: %s", e, exc_info=True)

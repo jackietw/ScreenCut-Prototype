@@ -203,7 +203,8 @@ class ImageCanvas(QWidget):
             if hasattr(win, 'refresh_library_strip'):
                 win.refresh_library_strip()
         except Exception as e:
-            print(f"Error auto-saving scut project: {e}")
+            import logging
+            logging.error("Error auto-saving scut project: %s", e, exc_info=True)
 
     def load_scut_project(self, filepath):
         try:
@@ -237,7 +238,8 @@ class ImageCanvas(QWidget):
             self._emit_undo_state()
             self.update()
         except Exception as e:
-            print(f"Error loading scut project: {e}")
+            import logging
+            logging.error("Error loading scut project: %s", e, exc_info=True)
 
     def set_image(self, img: QImage):
         self.base_image = img.convertToFormat(QImage.Format.Format_ARGB32)

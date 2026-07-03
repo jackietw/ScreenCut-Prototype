@@ -5,6 +5,7 @@
 
 import ctypes
 import ctypes.wintypes
+import logging
 from platforms._base import PlatformBase
 
 try:
@@ -41,8 +42,8 @@ class WindowsPlatform(PlatformBase):
         try:
             # WDA_EXCLUDEFROMCAPTURE = 0x00000011
             ctypes.windll.user32.SetWindowDisplayAffinity(hwnd, 0x11)
-        except Exception:
-            pass
+        except Exception as e:
+            logging.debug("SetWindowDisplayAffinity failed: %s", e, exc_info=True)
 
     # --- Window Pass-Through ---
     @staticmethod
@@ -55,8 +56,8 @@ class WindowsPlatform(PlatformBase):
                 hwnd, win32con.GWL_EXSTYLE,
                 exStyle | win32con.WS_EX_TRANSPARENT | win32con.WS_EX_LAYERED
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logging.debug("set_window_click_through failed: %s", e, exc_info=True)
 
     @staticmethod
     def set_window_hides_on_deactivate(hwnd: int, hides: bool = False) -> None:
@@ -86,14 +87,28 @@ class WindowsPlatform(PlatformBase):
             return True
         try:
             win32gui.EnumWindows(enum_cb, None)
-        except Exception:
-            pass
+        except Exception as e:
+            logging.debug("EnumWindows failed: %s", e, exc_info=True)
         return results
 
     # --- Global Hotkeys ---
     @staticmethod
-    def check_hotkey_conflict(mods: int, vk: int) -> bool:
+    def check_hotkey_conflict(mods: int, vk: int, config_key: str = None) -> bool:
         """Returns True if hotkey is available (no conflict)."""
+        try:
+            from config import load_config
+            cfg = load_config()
+            hotkeys = cfg.get("hotkeys", {})
+            if config_key and config_key in hotkeys:
+                hk = hotkeys[config_key]
+                if isinstance(hk, dict) and hk.get("vk") == vk and hk.get("modifiers") == mods:
+                    return True
+            for hk in hotkeys.values():
+                if isinstance(hk, dict) and hk.get("vk") == vk and hk.get("modifiers") == mods:
+                    return True
+        except Exception as e:
+            logging.debug("Error checking hotkey config in check_hotkey_conflict: %s", e, exc_info=True)
+
         TEST_ID = 9999
         success = ctypes.windll.user32.RegisterHotKey(0, TEST_ID, mods, vk)
         if success:
@@ -117,7 +132,8 @@ class WindowsPlatform(PlatformBase):
         try:
             _, _, (cx, cy) = win32gui.GetCursorInfo() # type: ignore
             return (cx, cy)
-        except Exception:
+        except Exception as e:
+            logging.debug("GetCursorInfo failed: %s", e, exc_info=True)
             return (0, 0)
 
     @staticmethod
@@ -127,5 +143,6 @@ class WindowsPlatform(PlatformBase):
         try:
             state = win32api.GetAsyncKeyState(0x01)  # VK_LBUTTON
             return (state & 0x8000) != 0
-        except Exception:
+        except Exception as e:
+            logging.debug("GetAsyncKeyState failed: %s", e, exc_info=True)
             return False

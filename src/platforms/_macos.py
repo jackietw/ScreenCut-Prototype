@@ -4,6 +4,7 @@
 '''
 
 import os
+import logging
 from platforms._base import PlatformBase
 
 # macOS modifier flags for CGEventFlags (used internally by pynput)
@@ -78,8 +79,8 @@ class MacOSPlatform(PlatformBase):
             window = view.window() if hasattr(view, 'window') else view
             if window and hasattr(window, 'setSharingType_'):
                 window.setSharingType_(0)  # NSWindowSharingNone
-        except Exception:
-            pass
+        except Exception as e:
+            logging.debug("set_window_capture_excluded failed on macOS: %s", e, exc_info=True)
 
     # --- Window Pass-Through ---
     @staticmethod
@@ -90,8 +91,8 @@ class MacOSPlatform(PlatformBase):
             window = view.window() if hasattr(view, 'window') else view
             if window and hasattr(window, 'setIgnoresMouseEvents_'):
                 window.setIgnoresMouseEvents_(True)
-        except Exception:
-            pass
+        except Exception as e:
+            logging.debug("set_window_click_through failed on macOS: %s", e, exc_info=True)
 
     @staticmethod
     def set_window_hides_on_deactivate(hwnd: int, hides: bool = False) -> None:
@@ -101,8 +102,8 @@ class MacOSPlatform(PlatformBase):
             window = view.window() if hasattr(view, 'window') else view
             if window and hasattr(window, 'setHidesOnDeactivate_'):
                 window.setHidesOnDeactivate_(hides)
-        except Exception:
-            pass
+        except Exception as e:
+            logging.debug("set_window_hides_on_deactivate failed on macOS: %s", e, exc_info=True)
 
     # --- Visible Window Enumeration ---
     @staticmethod
@@ -129,7 +130,7 @@ class MacOSPlatform(PlatformBase):
 
     # --- Global Hotkeys ---
     @staticmethod
-    def check_hotkey_conflict(mods: int, vk: int) -> bool:
+    def check_hotkey_conflict(mods: int, vk: int, config_key: str = None) -> bool:
         """On macOS pynput does not provide a conflict-check mechanism.
         We optimistically assume no conflict; duplicate registrations are
         handled gracefully by pynput."""
@@ -165,7 +166,8 @@ class MacOSPlatform(PlatformBase):
             from pynput.mouse import Controller
             m = Controller()
             return (int(m.position[0]), int(m.position[1]))
-        except Exception:
+        except Exception as e:
+            logging.debug("get_cursor_pos failed on macOS: %s", e, exc_info=True)
             return (0, 0)
 
     @staticmethod
@@ -181,5 +183,6 @@ class MacOSPlatform(PlatformBase):
                 Quartz.kCGMouseButtonLeft
             )
             return bool(state)
-        except Exception:
+        except Exception as e:
+            logging.debug("get_left_button_down failed on macOS: %s", e, exc_info=True)
             return False

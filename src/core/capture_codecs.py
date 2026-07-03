@@ -22,9 +22,8 @@ if sys.platform == "win32":
             flags |= getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
             kwargs["creationflags"] = flags
             return kwargs
-        _iio_utils._popen_kwargs = _patched_popen_kwargs
-    except Exception:
-        pass
+    except Exception as e:
+        logging.debug("Could not patch imageio_ffmpeg._popen_kwargs: %s", e, exc_info=True)
 
 _cached_hw_encoders: list = None
 
@@ -246,24 +245,24 @@ def mux_audio_into_video(video_path: str, audio_data: np.ndarray, samplerate: in
             if res.returncode == 0 and os.path.exists(video_path) and os.path.getsize(video_path) > 0:
                 if os.path.exists(temp_mp4):
                     try: os.remove(temp_mp4)
-                    except Exception: pass
+                    except Exception as e: logging.debug("Failed removing temp_mp4: %s", e, exc_info=True)
                 return True
             else:
                 logging.error("FFmpeg audio muxing failed. Restoring original un-muxed video.")
                 if os.path.exists(video_path):
                     try: os.remove(video_path)
-                    except Exception: pass
+                    except Exception as e: logging.debug("Failed removing corrupted video_path: %s", e, exc_info=True)
                 if os.path.exists(temp_mp4):
                     os.rename(temp_mp4, video_path)
     except Exception as e:
-        logging.warning("Failed to mux audio into video: %s", e)
+        logging.warning("Failed to mux audio into video: %s", e, exc_info=True)
         if temp_mp4 and os.path.exists(temp_mp4) and not os.path.exists(video_path):
             try:
                 os.rename(temp_mp4, video_path)
-            except Exception:
-                pass
+            except Exception as e:
+                logging.debug("Failed renaming temp_mp4 back to video_path: %s", e, exc_info=True)
     finally:
         if temp_wav and os.path.exists(temp_wav):
             try: os.remove(temp_wav)
-            except Exception: pass
+            except Exception as e: logging.debug("Failed removing temp_wav: %s", e, exc_info=True)
     return False

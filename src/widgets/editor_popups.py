@@ -161,9 +161,16 @@ class DeleteConfirmPopup(QWidget):
         is_current = (self.editor_win.current_image_path == self.filepath)
         try:
             if os.path.exists(self.filepath):
-                os.remove(self.filepath)
-        except Exception:
-            pass
+                from PySide6.QtCore import QFile
+                if not QFile.moveToTrash(self.filepath):
+                    try:
+                        import send2trash
+                        send2trash.send2trash(self.filepath)
+                    except ImportError:
+                        os.remove(self.filepath)
+        except Exception as e:
+            import logging
+            logging.warning("Error deleting project file: %s", e, exc_info=True)
         if is_current:
             self.editor_win.current_image_path = None
         self.close()

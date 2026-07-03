@@ -79,20 +79,29 @@ class RecStatus(RecStatusUI):
 
     def _audio_loop(self):
         try:
-            import sounddevice as sd
+            import soundcard as sc
             import numpy as np
+            from config import load_config
             
-            def callback(indata, frames, time, status):
-                if self._audio_running:
-                    rms = float(np.sqrt(np.mean(indata ** 2)))
-                    # Map to 0-1 with some headroom (typical speech ~0.01-0.1 RMS)
-                    self._audio_level = min(1.0, rms * 12)
-            
-            with sd.InputStream(channels=1, samplerate=16000, blocksize=512, callback=callback):
+            cfg = load_config()
+            curr_aud = cfg.get("audio_source", "")
+            mic_obj = None
+            if curr_aud and curr_aud != "None (Muted)":
+                for m in sc.all_microphones(include_loopback=False):
+                    if m.name == curr_aud:
+                        mic_obj = m
+                        break
+            if not mic_obj:
+                mic_obj = sc.default_microphone()
+
+            with mic_obj.recorder(samplerate=16000, channels=1) as rec:
                 while self._audio_running:
-                    threading.Event().wait(0.05)
-        except Exception:
-            # sounddevice not available or no input device
+                    data = rec.record(numframes=512)
+                    rms = float(np.sqrt(np.mean(data ** 2)))
+                    self._audio_level = min(1.0, rms * 12)
+        except Exception as e:
+            import logging
+            logging.debug("VU meter audio monitor loop terminated: %s", e, exc_info=True)
             self._audio_running = False
 
     def _update_vu(self):

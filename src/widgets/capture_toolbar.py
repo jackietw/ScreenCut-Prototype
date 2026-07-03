@@ -190,12 +190,17 @@ class VideoToolbar(QWidget):
         curr_aud = cfg.get("audio_source", "")
 
         try:
-            import sounddevice as sd
-            devices = sd.query_devices()
+            import soundcard as sc
+            mics = sc.all_microphones(include_loopback=False)
             found_checked = False
-            for d in devices:
-                if d['max_input_channels'] > 0:
-                    dev_name = d['name']
+
+            if not mics:
+                no_act = QAction("No Microphone Detected", self)
+                no_act.setEnabled(False)
+                self.audio_split.addAction(no_act)
+            else:
+                for m in mics:
+                    dev_name = m.name
                     act = QAction(dev_name, self, checkable=True)
                     if dev_name == curr_aud:
                         act.setChecked(True)
@@ -203,11 +208,11 @@ class VideoToolbar(QWidget):
                     act.triggered.connect(lambda checked=False, name=dev_name: self._on_audio_device_selected(name))
                     self.audio_action_group.addAction(act)
                     self.audio_split.addAction(act)
-            if not found_checked and len(self.audio_action_group.actions()) > 0:
-                self.audio_action_group.actions()[0].setChecked(True)
+                if not found_checked and len(self.audio_action_group.actions()) > 0:
+                    self.audio_action_group.actions()[0].setChecked(True)
         except Exception as e:
             import logging
-            logging.warning("Error enumerating sound devices in toolbar: %s", e)
+            logging.warning("Error enumerating sound devices in toolbar: %s", e, exc_info=True)
 
         # System Audio button
         self.btn_sys_audio = create_toolbar_button(

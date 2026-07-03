@@ -84,7 +84,7 @@ class VideoCaptureThread(QThread):
                 writer = imageio.get_writer(self.output_path, fps=fps, codec=codec, macro_block_size=2, ffmpeg_params=ffmpeg_params)
             except Exception as e:
                 import logging
-                logging.warning("Video writer initialization failed for codec %s (%s). Falling back to software libx264.", codec, e)
+                logging.warning("Video writer initialization failed for codec %s (%s). Falling back to software libx264.", codec, e, exc_info=True)
                 codec, ffmpeg_params = get_video_writer_params(False, "", self.compression)
                 writer = imageio.get_writer(self.output_path, fps=fps, codec=codec, macro_block_size=2, ffmpeg_params=ffmpeg_params)
             
@@ -115,7 +115,9 @@ class VideoCaptureThread(QThread):
                             with objc.autorelease_pool():
                                 sct_img = sct.grab(monitor)
                                 frame = np.array(sct_img)
-                        except Exception:
+                        except Exception as e:
+                            import logging
+                            logging.debug("autorelease_pool grab failed: %s", e, exc_info=True)
                             sct_img = sct.grab(monitor)
                             frame = np.array(sct_img)
                     else:
@@ -151,8 +153,9 @@ class VideoCaptureThread(QThread):
                             ], np.int32)
                             cv2.fillPoly(frame, [cursor_poly], (0, 0, 0))
                             cv2.polylines(frame, [cursor_poly], True, (255, 255, 255), 1, cv2.LINE_AA)
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            import logging
+                            logging.debug("Failed drawing cursor fallback: %s", e, exc_info=True)
                     
                     # Draw Click Animations
                     if self.cl_enabled and click_animations:
@@ -204,8 +207,8 @@ class VideoCaptureThread(QThread):
             if writer:
                 try:
                     writer.close()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logging.debug("Error closing video writer in exception handler: %s", e, exc_info=True)
         finally:
             self.finished_signal.emit(self.output_path)
 
