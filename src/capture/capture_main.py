@@ -32,6 +32,7 @@ class Main(MainUI):
         prefs.exec()
 
     def open_editor(self, initial_image=None, current_filepath=None):
+        self.hide()
         from editor.editor_main import ImageEditor
         self.editor_win = ImageEditor.get_instance(self.library_dir, initial_image=initial_image, current_filepath=current_filepath)
 
@@ -125,8 +126,18 @@ class Main(MainUI):
         config_data["toggles"][label_text] = is_checked
         save_config(config_data)
 
+    def _hide_editor_before_capture(self):
+        try:
+            from editor.editor_main import ImageEditor
+            if ImageEditor._instance and ImageEditor._instance.isVisible():
+                ImageEditor._instance._hidden_by_capture = True
+                ImageEditor._instance.hide()
+        except Exception:
+            pass
+
     def start_capture(self):
         self.hide()
+        self._hide_editor_before_capture()
         capture_cursor = self.toggles.get("Capture Cursor", None)
         self._has_cursor = capture_cursor.isChecked() if capture_cursor else False
         
@@ -150,6 +161,7 @@ class Main(MainUI):
         if not getattr(self, 'video_tab_loaded', False):
             self.load_video_tab()
         self.hide()
+        self._hide_editor_before_capture()
         capture_cursor = self.toggles.get("Capture Cursor (Video)", None)
         self._has_cursor = capture_cursor.isChecked() if capture_cursor else False
         self._is_scroll = False
@@ -167,6 +179,23 @@ class Main(MainUI):
         self.overlay.setFocus()
 
     def show_after_capture(self):
+        try:
+            from editor.editor_main import ImageEditor
+            if ImageEditor._instance and getattr(ImageEditor._instance, '_hidden_by_capture', False):
+                ImageEditor._instance._hidden_by_capture = False
+                ImageEditor._instance.show()
+                ImageEditor._instance.raise_()
+        except Exception:
+            pass
+
+        try:
+            from editor.editor_main import ImageEditor
+            if ImageEditor._instance and ImageEditor._instance.isVisible():
+                self.hide()
+                return
+        except Exception:
+            pass
+
         self.show()
         self.activateWindow()
         self.raise_()

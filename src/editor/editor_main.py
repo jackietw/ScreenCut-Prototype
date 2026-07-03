@@ -68,8 +68,9 @@ class ImageEditor(ImageEditorUI):
 
     def showEvent(self, event):
         super().showEvent(event)
-        from resources.icon_utils import apply_dark_titlebar
+        from resources.icon_utils import apply_dark_titlebar, get_app_icon
         apply_dark_titlebar(self)
+        self.setWindowIcon(get_app_icon(True))
         if getattr(self, 'is_auto_fit', False):
             QTimer.singleShot(10, self.auto_fit_image)
 
@@ -266,3 +267,41 @@ class ImageEditor(ImageEditorUI):
             toast = Notification(f"Saved & copied:\n{os.path.basename(path)}", self)
             toast.show_toast()
             self.refresh_library_strip()
+
+    def start_new_capture(self):
+        # 1. Try finding Main capture window in top-level widgets
+        for w in QApplication.topLevelWidgets():
+            if w.__class__.__name__ == "Main":
+                w.start_capture()
+                return
+
+        # 2. Try IPC connection to ScreenCut_IPC_Server
+        from PySide6.QtNetwork import QLocalSocket
+        sock = QLocalSocket()
+        sock.connectToServer("ScreenCut_IPC_Server")
+        if sock.waitForConnected(300):
+            sock.write("START_CAPTURE".encode('utf-8'))
+            sock.flush()
+            sock.waitForBytesWritten(300)
+            sock.disconnectFromServer()
+            return
+
+        # 3. If neither worked, launch ScreenCut capture executable or script
+        import subprocess, sys
+        creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000) if sys.platform == "win32" else 0
+        if getattr(sys, 'frozen', False):
+            exe_dir = os.path.dirname(sys.executable)
+            capture_exe = os.path.join(exe_dir, "ScreenCut.exe")
+            if os.path.exists(capture_exe):
+                subprocess.Popen([capture_exe], creationflags=creationflags)
+        else:
+            src_dir = os.path.dirname(os.path.abspath(__file__))
+            root_src = os.path.dirname(src_dir)
+            screencut_py = os.path.join(root_src, "screencut.py")
+            if os.path.exists(screencut_py):
+                py_exe = sys.executable
+                if sys.platform == "win32" and py_exe.lower().endswith("python.exe"):
+                    pythonw = os.path.join(os.path.dirname(py_exe), "pythonw.exe")
+                    if os.path.exists(pythonw):
+                        py_exe = pythonw
+                subprocess.Popen([py_exe, screencut_py], creationflags=creationflags)

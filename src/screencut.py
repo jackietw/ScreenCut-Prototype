@@ -19,9 +19,13 @@ def global_exception_handler(exc_type, exc_value, exc_tb):
     import traceback
     import logging
     error_msg = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
-    # Always write to crash.log (legacy) and to the rotating log via logging
-    with open("crash.log", "a") as f:
-        f.write(error_msg + "\n")
+    try:
+        from config import get_app_config_dir
+        crash_log_path = os.path.join(get_app_config_dir(), "crash.log")
+        with open(crash_log_path, "a", encoding="utf-8") as f:
+            f.write(error_msg + "\n")
+    except Exception:
+        pass
     logging.critical(error_msg)
     # Only show dialog in debug mode
     from config import is_debug_mode
@@ -53,18 +57,18 @@ def main():
     from config import setup_logging
     setup_logging()   # Must be first - configures logging for the whole app
     sys.excepthook = global_exception_handler
+    is_editor_mode = "--editor" in sys.argv or (len(sys.argv) > 1 and sys.argv[1].lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.scut')))
     if sys.platform == 'win32':
         import ctypes
-        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('screencut.capture.app.v1')
+        app_id = 'screencut.editor.app.v1' if is_editor_mode else 'screencut.capture.app.v1'
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(app_id)
     app = ScreenCut(sys.argv)
     app.setStyleSheet("QToolTip { background-color: #1e293b; color: #f8fafc; border: 1px solid #475569; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }")
     
-    from resources.icon_utils import create_svg_icon, SVG_APP_ICON
-    app_icon = create_svg_icon(SVG_APP_ICON, 64, 64)
+    from resources.icon_utils import get_app_icon
+    app_icon = get_app_icon(is_editor_mode)
     app.setWindowIcon(app_icon)
     
-    # CLI Editor Mode / File association launch
-    is_editor_mode = "--editor" in sys.argv or (len(sys.argv) > 1 and sys.argv[1].lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.scut')))
     if is_editor_mode:
         app.setQuitOnLastWindowClosed(True)
         docs_dir = get_documents_folder()
@@ -142,8 +146,11 @@ def main():
     
     def force_quit():
         tray_icon.hide()
-        # Forcefully terminate the application
-        os._exit(0)
+        try:
+            window.close()
+        except Exception:
+            pass
+        app.quit()
         
     quit_action = QAction("Quit", window)
     quit_action.triggered.connect(force_quit)
@@ -169,6 +176,8 @@ def main():
             elif msg == "SHOW_NORMAL":
                 window.showNormal()
                 window.activateWindow()
+            elif msg == "START_CAPTURE":
+                window.start_capture()
     ipc_server.newConnection.connect(handle_ipc_connection)
     app._ipc_server = ipc_server
 

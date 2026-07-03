@@ -75,6 +75,7 @@ class ImageEditorUI(QMainWindow):
         self.toolbar = EditorToolBar(self)
         self.addToolBar(self.toolbar)
         self.tool_group = self.toolbar.tool_group
+        self.toolbar.capture_clicked.connect(self.start_new_capture)
         self.toolbar.tool_selected.connect(self.select_tool)
         self.toolbar.undo_clicked.connect(self.canvas.undo)
         self.toolbar.redo_clicked.connect(self.canvas.redo)
@@ -192,3 +193,4 @@ class ImageEditorUI(QMainWindow):
     def delete_library_file(self, filepath, target_btn=None): pass
     def load_image_from_path(self, filepath): pass
     def refresh_library_strip(self): pass
+    def start_new_capture(self): pass

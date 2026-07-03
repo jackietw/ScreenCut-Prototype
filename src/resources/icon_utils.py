@@ -25,6 +25,7 @@ SVG_ABOUT = '<svg xmlns="http://www.w3.org/2000/svg" enable-background="new 0 0 
 SVG_TAB_IMAGE = '<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px" fill="#F3F3F3"><path d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="3.2"/><path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/></svg>'
 SVG_TAB_VIDEO = '<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px" fill="#F3F3F3"><path d="M0 0h24v24H0z" fill="none"/><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>'
 SVG_APP_ICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#2b2b2b"/><circle cx="32" cy="32" r="20" fill="#e53935"/><circle cx="32" cy="32" r="14" fill="#ff5252"/><circle cx="32" cy="32" r="6" fill="#ffffff"/></svg>'
+SVG_EDITOR_APP_ICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#1e293b"/><g transform="translate(12, 12) scale(1.667)" fill="#38bdf8"><path d="M7.5 5.6L10 7 8.6 4.5 10 2 7.5 3.4 5 2l1.4 2.5L5 7zm12 9.8L17 14l1.4 2.5L17 19l2.5-1.4L22 19l-1.4-2.5L22 14zM22 2l-2.5 1.4L17 2l1.4 2.5L17 7l2.5-1.4L22 7l-1.4-2.5zm-7.63 5.29c-.39-.39-1.02-.39-1.41 0L1.29 18.96c-.39.39-.39 1.02 0 1.41l2.34 2.34c.39.39 1.02.39 1.41 0L16.7 11.05c.39-.39.39-1.02 0-1.41l-2.33-2.35zm-1.03 5.49l-2.12-2.12 2.44-2.44 2.12 2.12-2.44 2.44z"/></g></svg>'
 
 SVG_SELECT = '<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px" fill="#FFFFFF"><path d="M0 0h24v24H0z" fill="none"/><path d="M3 1.5l6.85 19.5 3.3-7.5 7.5-3.3L3 1.5z"/></svg>'
 #SVG_ARROW = '<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px" fill="#FFFFFF"><path d="M0 0h24v24H0z" fill="none"/><path d="M16.01 11H4v2h12.01v3L20 12l-3.99-4z"/></svg>'
@@ -78,6 +79,24 @@ def create_svg_icon(svg_string, width=24, height=24):
     icon.addPixmap(disabled_pixmap, QIcon.Mode.Disabled, QIcon.State.On)
     return icon
 
+def get_app_icon(is_editor: bool = False) -> QIcon:
+    import os
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    icons_dir = os.path.join(base_dir, "icons")
+    
+    if is_editor:
+        for fname in ["editor.ico", "editor.png"]:
+            path = os.path.join(icons_dir, fname)
+            if os.path.exists(path):
+                return QIcon(path)
+        return create_svg_icon(SVG_EDITOR_APP_ICON, 64, 64)
+    else:
+        for fname in ["cap.ico", "cap.png", "capture.ico", "capture.png"]:
+            path = os.path.join(icons_dir, fname)
+            if os.path.exists(path):
+                return QIcon(path)
+        return create_svg_icon(SVG_APP_ICON, 64, 64)
+
 def apply_dark_titlebar(window):
     try:
         import ctypes
@@ -93,3 +112,21 @@ def apply_dark_titlebar(window):
         )
     except Exception:
         pass
+
+def export_app_icons(target_dir: str):
+    import os
+    os.makedirs(target_dir, exist_ok=True)
+    for name, svg in [("capture", SVG_APP_ICON), ("editor", SVG_EDITOR_APP_ICON)]:
+        icon = create_svg_icon(svg, 256, 256)
+        pixmap = icon.pixmap(256, 256)
+        pixmap.save(os.path.join(target_dir, f"{name}.png"), "PNG")
+        pixmap.save(os.path.join(target_dir, f"{name}.ico"), "ICO")
+
+if __name__ == "__main__":
+    import sys
+    import os
+    from PySide6.QtWidgets import QApplication
+    app = QApplication(sys.argv)
+    target = os.path.join(os.path.dirname(__file__), "icons")
+    export_app_icons(target)
+    print(f"Exported icons to {target}")

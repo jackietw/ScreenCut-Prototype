@@ -275,15 +275,28 @@ class ScrollCaptureManager(QWidget):
             )
             self.preview_lbl.setPixmap(pixmap)
 
+    def _close_mss(self):
+        if hasattr(self, 'sct') and self.sct:
+            try:
+                self.sct.close()
+            except Exception:
+                pass
+            self.sct = None
+
+    def closeEvent(self, event):
+        self._close_mss()
+        super().closeEvent(event)
+
     def finish_capture(self):
         self.timer.stop()
+        self._close_mss()
         if hasattr(self, 'border_overlay'):
             self.border_overlay.close()
         self.close()
         
         if self.accumulated_image is not None:
             # Save accumulated_image
-            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            timestamp = time.strftime("%Y%m%d_%H%M%S") + f"_{int(time.time()*1000)%1000:03d}"
             filename = f"ScrollCapture_{timestamp}.scut"
             filepath = os.path.join(self.library_dir, filename)
             
@@ -303,11 +316,25 @@ class ScrollCaptureManager(QWidget):
             import logging
             logging.info("Scroll Capture saved: %s", filepath)
             
+            from config import load_config
+            config = load_config()
+            try:
+                from editor.editor_main import ImageEditor
+                if ImageEditor._instance:
+                    ImageEditor._instance._hidden_by_capture = False
+            except Exception:
+                pass
+
+            if config.get("toggles", {}).get("Preview in Editor", True):
+                from editor.editor_main import ImageEditor
+                ImageCaptureManager._active_editor = ImageEditor.get_instance(self.library_dir, initial_image=q_img_copy, current_filepath=filepath)
+            
         if self.on_done_callback:
             self.on_done_callback()
             
     def cancel_capture(self):
         self.timer.stop()
+        self._close_mss()
         if hasattr(self, 'border_overlay'):
             self.border_overlay.close()
         self.close()
@@ -330,14 +357,18 @@ def save_image_as_scut(q_img: QImage, filepath: str):
         thumb_b64 = t_ba.toBase64().data().decode('ascii')
         
         data = {
-            "version": PROJECT_VERSION,
-            "timestamp": time.strftime("%Y%m%d_%H%M%S"),
+            "version": "1.0",
+            "timestamp": time.time(),
+            "image": img_b64,
             "image_base64": img_b64,
+            "thumbnail": thumb_b64,
             "thumbnail_base64": thumb_b64,
             "annotations": []
         }
-        with open(filepath, "w", encoding="utf-8") as f:
+        tmp_filepath = f"{filepath}.tmp.{int(time.time()*1000)}"
+        with open(tmp_filepath, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
+        os.replace(tmp_filepath, filepath)
     except Exception as e:
         print(f"Error saving scut capture: {e}")
 
@@ -351,7 +382,7 @@ class ImageCaptureManager:
         # Reset device pixel ratio on the cropped image before saving so it saves at full physical resolution
         cropped_image.setDevicePixelRatio(1.0)
         
-        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        timestamp = time.strftime("%Y%m%d_%H%M%S") + f"_{int(time.time()*1000)%1000:03d}"
         filename = f"Capture_{timestamp}.scut"
         filepath = os.path.join(library_dir, filename)
         save_image_as_scut(cropped_image, filepath)
@@ -362,6 +393,13 @@ class ImageCaptureManager:
         
         from config import load_config
         config = load_config()
+        try:
+            from editor.editor_main import ImageEditor
+            if ImageEditor._instance:
+                ImageEditor._instance._hidden_by_capture = False
+        except Exception:
+            pass
+
         if config.get("toggles", {}).get("Preview in Editor", True):
             from editor.editor_main import ImageEditor
             ImageCaptureManager._active_editor = ImageEditor.get_instance(library_dir, initial_image=cropped_image, current_filepath=filepath)

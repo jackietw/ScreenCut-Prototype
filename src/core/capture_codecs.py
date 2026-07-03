@@ -11,6 +11,21 @@ import subprocess
 import logging
 import numpy as np
 
+# Prevent imageio_ffmpeg from flashing terminal windows on Windows when launching ffmpeg
+if sys.platform == "win32":
+    try:
+        import imageio_ffmpeg._utils as _iio_utils
+        _orig_popen_kwargs = _iio_utils._popen_kwargs
+        def _patched_popen_kwargs(prevent_sigint=False):
+            kwargs = _orig_popen_kwargs(prevent_sigint)
+            flags = kwargs.get("creationflags", 0) or 0
+            flags |= getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
+            kwargs["creationflags"] = flags
+            return kwargs
+        _iio_utils._popen_kwargs = _patched_popen_kwargs
+    except Exception:
+        pass
+
 _cached_hw_encoders: list = None
 
 def get_cached_hw_encoders():
@@ -205,6 +220,8 @@ def mux_audio_into_video(video_path: str, audio_data: np.ndarray, samplerate: in
     if audio_data is None or len(audio_data) == 0:
         return False
     library_dir = os.path.dirname(video_path)
+    temp_wav = None
+    temp_mp4 = None
     try:
         import soundfile as sf
         import imageio_ffmpeg
@@ -224,14 +241,29 @@ def mux_audio_into_video(video_path: str, audio_data: np.ndarray, samplerate: in
                 "-shortest",
                 video_path
             ]
-            subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            if os.path.exists(temp_mp4):
-                try: os.remove(temp_mp4)
-                except Exception: pass
-            if os.path.exists(temp_wav):
-                try: os.remove(temp_wav)
-                except Exception: pass
-            return True
+            creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000) if sys.platform == "win32" else 0
+            res = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=creationflags)
+            if res.returncode == 0 and os.path.exists(video_path) and os.path.getsize(video_path) > 0:
+                if os.path.exists(temp_mp4):
+                    try: os.remove(temp_mp4)
+                    except Exception: pass
+                return True
+            else:
+                logging.error("FFmpeg audio muxing failed. Restoring original un-muxed video.")
+                if os.path.exists(video_path):
+                    try: os.remove(video_path)
+                    except Exception: pass
+                if os.path.exists(temp_mp4):
+                    os.rename(temp_mp4, video_path)
     except Exception as e:
         logging.warning("Failed to mux audio into video: %s", e)
+        if temp_mp4 and os.path.exists(temp_mp4) and not os.path.exists(video_path):
+            try:
+                os.rename(temp_mp4, video_path)
+            except Exception:
+                pass
+    finally:
+        if temp_wav and os.path.exists(temp_wav):
+            try: os.remove(temp_wav)
+            except Exception: pass
     return False

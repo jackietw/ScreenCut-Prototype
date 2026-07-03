@@ -29,10 +29,12 @@ CONFIG_PATH = os.path.join(get_app_config_dir(), "config.json")
 # Debug mode: set to True during development, False for release builds.
 # Controlled by the "debug_mode" key in config.json.
 # ---------------------------------------------------------------------------
-DEFAULT_DEBUG = True  # Change to False before releasing
+DEFAULT_DEBUG = "--debug" in sys.argv or "-d" in sys.argv or os.getenv("SCREENCUT_DEBUG", "0") in ("1", "true", "True")
 
 def is_debug_mode() -> bool:
     """Return True when debug dialogs / verbose output should be shown."""
+    if "--debug" in sys.argv or "-d" in sys.argv or os.getenv("SCREENCUT_DEBUG", "0") in ("1", "true", "True"):
+        return True
     try:
         cfg = load_config()
         return bool(cfg.get("debug_mode", DEFAULT_DEBUG))

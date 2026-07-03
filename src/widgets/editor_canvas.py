@@ -153,7 +153,16 @@ class ImageCanvas(QWidget):
         self.setMouseTracking(True)
         self.update_canvas_size()
 
+        self._auto_save_timer = QTimer(self)
+        self._auto_save_timer.setSingleShot(True)
+        self._auto_save_timer.setInterval(1200) # 1.2s debounce
+        self._auto_save_timer.timeout.connect(self._perform_auto_save)
+
     def trigger_auto_save(self):
+        if self.current_filepath and self.current_filepath.lower().endswith('.scut'):
+            self._auto_save_timer.start()
+
+    def _perform_auto_save(self):
         if self.current_filepath and self.current_filepath.lower().endswith('.scut'):
             self.save_scut_project(self.current_filepath)
 
@@ -174,8 +183,10 @@ class ImageCanvas(QWidget):
             
             data = {
                 "version": PROJECT_VERSION,
-                "timestamp": time.strftime("%Y%m%d_%H%M%S"),
+                "timestamp": time.strftime("%Y%m%d_%H%M%S") + f"_{int(time.time()*1000)%1000:03d}",
+                "image": img_b64,
                 "image_base64": img_b64,
+                "thumbnail": thumb_b64,
                 "thumbnail_base64": thumb_b64,
                 "annotations": [obj.to_dict() for obj in self.annotations],
                 "default_canvas_w": getattr(self, 'default_canvas_w', self.base_image.width()),
@@ -183,8 +194,10 @@ class ImageCanvas(QWidget):
                 "extra_left": getattr(self, 'extra_left', 0),
                 "extra_top": getattr(self, 'extra_top', 0)
             }
-            with open(filepath, "w", encoding="utf-8") as f:
+            tmp_filepath = f"{filepath}.tmp.{int(time.time()*1000)}"
+            with open(tmp_filepath, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
+            os.replace(tmp_filepath, filepath)
                 
             win = self.window()
             if hasattr(win, 'refresh_library_strip'):

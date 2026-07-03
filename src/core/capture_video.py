@@ -77,122 +77,137 @@ class VideoCaptureThread(QThread):
         hw_encoder = config_data.get("hw_encoder", "")
         
         codec, ffmpeg_params = get_video_writer_params(hw_enabled, hw_encoder, self.compression)
+        writer = None
+        audio_recorder = None
         try:
-            writer = imageio.get_writer(self.output_path, fps=fps, codec=codec, macro_block_size=2, ffmpeg_params=ffmpeg_params)
-        except Exception as e:
-            import logging
-            logging.warning("Video writer initialization failed for codec %s (%s). Falling back to software libx264.", codec, e)
-            codec, ffmpeg_params = get_video_writer_params(False, "", self.compression)
-            writer = imageio.get_writer(self.output_path, fps=fps, codec=codec, macro_block_size=2, ffmpeg_params=ffmpeg_params)
-        
-        monitor = {
-            "top": self.rect.top(),
-            "left": self.rect.left(),
-            "width": self.rect.width(),
-            "height": self.rect.height()
-        }
-        
-        audio_recorder = AudioRecorder(self.audio_device, self.sys_audio_enabled, self.is_muted, self.is_sys_muted)
-        audio_recorder.start()
-        self.audio_recorder = audio_recorder
-
-        with mss.mss() as sct:
-            frame_duration = 1.0 / fps
-            next_frame_time = time.time()
+            try:
+                writer = imageio.get_writer(self.output_path, fps=fps, codec=codec, macro_block_size=2, ffmpeg_params=ffmpeg_params)
+            except Exception as e:
+                import logging
+                logging.warning("Video writer initialization failed for codec %s (%s). Falling back to software libx264.", codec, e)
+                codec, ffmpeg_params = get_video_writer_params(False, "", self.compression)
+                writer = imageio.get_writer(self.output_path, fps=fps, codec=codec, macro_block_size=2, ffmpeg_params=ffmpeg_params)
             
-            while self.is_running:
-                now = time.time()
-                if now < next_frame_time:
-                    time.sleep(next_frame_time - now)
-                    
-                # Grab frame (with autorelease pool on macOS to flush CoreGraphics IPC buffers)
-                if sys.platform == 'darwin':
-                    try:
-                        import objc
-                        with objc.autorelease_pool():
+            monitor = {
+                "top": self.rect.top(),
+                "left": self.rect.left(),
+                "width": self.rect.width(),
+                "height": self.rect.height()
+            }
+            
+            audio_recorder = AudioRecorder(self.audio_device, self.sys_audio_enabled, self.is_muted, self.is_sys_muted)
+            audio_recorder.start()
+            self.audio_recorder = audio_recorder
+
+            with mss.mss() as sct:
+                frame_duration = 1.0 / fps
+                next_frame_time = time.time()
+                
+                while self.is_running:
+                    now = time.time()
+                    if now < next_frame_time:
+                        time.sleep(next_frame_time - now)
+                        
+                    # Grab frame (with autorelease pool on macOS to flush CoreGraphics IPC buffers)
+                    if sys.platform == 'darwin':
+                        try:
+                            import objc
+                            with objc.autorelease_pool():
+                                sct_img = sct.grab(monitor)
+                                frame = np.array(sct_img)
+                        except Exception:
                             sct_img = sct.grab(monitor)
                             frame = np.array(sct_img)
-                    except Exception:
+                    else:
                         sct_img = sct.grab(monitor)
                         frame = np.array(sct_img)
-                else:
-                    sct_img = sct.grab(monitor)
-                    frame = np.array(sct_img)
-                # Convert BGRA to RGB for imageio (and make it contiguous for cv2)
-                frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2RGB)
-                
-                # Check Cursor State
-                if self.capture_cursor:
-                    try:
-                        cx, cy = Platform.get_cursor_pos()
-                        # Translate to frame coordinates
-                        fx = cx - monitor["left"]
-                        fy = cy - monitor["top"]
-
-                        # Draw Highlight
-                        if self.hl_enabled:
-                            cv2.circle(frame, (fx, fy), 24, self.hl_color, -1, cv2.LINE_AA)
-                        
-                        # Trigger Click Animation on state change
-                        if self.cl_enabled:
-                            is_clicking = Platform.is_mouse_button_pressed(1)
-                            if is_clicking and not prev_clicked:
-                                click_animations.append({"pos": (fx, fy), "radius": 4.0})
-                            prev_clicked = is_clicking
-
-                        # Draw Vector Cursor
-                        cursor_poly = np.array([
-                            [fx, fy], [fx, fy+20], [fx+5, fy+15],
-                            [fx+10, fy+25], [fx+12, fy+24],
-                            [fx+7, fy+14], [fx+15, fy+14]
-                        ], np.int32)
-                        cv2.fillPoly(frame, [cursor_poly], (0, 0, 0))
-                        cv2.polylines(frame, [cursor_poly], True, (255, 255, 255), 1, cv2.LINE_AA)
-                    except Exception:
-                        pass
-                
-                # Draw Click Animations
-                if self.cl_enabled and click_animations:
-                    new_anims = []
-                    overlay = frame.copy()
-                    for anim in click_animations:
-                        cv2.circle(overlay, anim["pos"], int(anim["radius"]), self.cl_color, 2, cv2.LINE_AA)
-                        anim["radius"] += 4
-                        if anim["radius"] < 40:
-                            new_anims.append(anim)
-                    cv2.addWeighted(overlay, 0.7, frame, 0.3, 0, frame)
-                    click_animations = new_anims
-                
-                # 1080p limit scale down
-                if self.limit_1080p and (frame.shape[1] > 1920 or frame.shape[0] > 1080):
-                    scale = min(1920 / frame.shape[1], 1080 / frame.shape[0])
-                    new_w = int(frame.shape[1] * scale)
-                    new_h = int(frame.shape[0] * scale)
-                    frame = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_AREA)
-
-                # Ensure even dimensions for yuv420p hardware/software video encoders
-                if frame.shape[1] % 2 != 0 or frame.shape[0] % 2 != 0:
-                    ew = frame.shape[1] - (frame.shape[1] % 2)
-                    eh = frame.shape[0] - (frame.shape[0] % 2)
-                    frame = frame[:eh, :ew]
-
-                writer.append_data(frame)
-                next_frame_time += frame_duration
-                
-                now = time.time()
-                if next_frame_time < now:
-                    # Prevent infinite catch-up death spirals on macOS Retina screens
-                    if now - next_frame_time > frame_duration:
-                        next_frame_time = now
-                    else:
-                        writer.append_data(frame)
-                        next_frame_time += frame_duration
+                    # Convert BGRA to RGB for imageio (and make it contiguous for cv2)
+                    frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2RGB)
                     
-        writer.close()
+                    # Check Cursor State
+                    if self.capture_cursor:
+                        try:
+                            cx, cy = Platform.get_cursor_pos()
+                            # Translate to frame coordinates
+                            fx = cx - monitor["left"]
+                            fy = cy - monitor["top"]
 
-        audio_data = audio_recorder.stop_and_get_audio()
-        mux_audio_into_video(self.output_path, audio_data, audio_recorder.samplerate)
-        self.finished_signal.emit(self.output_path)
+                            # Draw Highlight
+                            if self.hl_enabled:
+                                cv2.circle(frame, (fx, fy), 24, self.hl_color, -1, cv2.LINE_AA)
+                            
+                            # Trigger Click Animation on state change
+                            if self.cl_enabled:
+                                is_clicking = Platform.get_left_button_down()
+                                if is_clicking and not prev_clicked:
+                                    click_animations.append({"pos": (fx, fy), "radius": 4.0})
+                                prev_clicked = is_clicking
+
+                            # Draw Vector Cursor
+                            cursor_poly = np.array([
+                                [fx, fy], [fx, fy+20], [fx+5, fy+15],
+                                [fx+10, fy+25], [fx+12, fy+24],
+                                [fx+7, fy+14], [fx+15, fy+14]
+                            ], np.int32)
+                            cv2.fillPoly(frame, [cursor_poly], (0, 0, 0))
+                            cv2.polylines(frame, [cursor_poly], True, (255, 255, 255), 1, cv2.LINE_AA)
+                        except Exception:
+                            pass
+                    
+                    # Draw Click Animations
+                    if self.cl_enabled and click_animations:
+                        new_anims = []
+                        overlay = frame.copy()
+                        for anim in click_animations:
+                            cv2.circle(overlay, anim["pos"], int(anim["radius"]), self.cl_color, 2, cv2.LINE_AA)
+                            anim["radius"] += 4
+                            if anim["radius"] < 40:
+                                new_anims.append(anim)
+                        cv2.addWeighted(overlay, 0.7, frame, 0.3, 0, frame)
+                        click_animations = new_anims
+                    
+                    # 1080p limit scale down
+                    if self.limit_1080p and (frame.shape[1] > 1920 or frame.shape[0] > 1080):
+                        scale = min(1920 / frame.shape[1], 1080 / frame.shape[0])
+                        new_w = int(frame.shape[1] * scale)
+                        new_h = int(frame.shape[0] * scale)
+                        frame = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_AREA)
+
+                    # Ensure even dimensions for yuv420p hardware/software video encoders
+                    if frame.shape[1] % 2 != 0 or frame.shape[0] % 2 != 0:
+                        ew = frame.shape[1] - (frame.shape[1] % 2)
+                        eh = frame.shape[0] - (frame.shape[0] % 2)
+                        frame = frame[:eh, :ew]
+
+                    writer.append_data(frame)
+                    next_frame_time += frame_duration
+                    
+                    now = time.time()
+                    if next_frame_time < now:
+                        # Prevent infinite catch-up death spirals on macOS Retina screens
+                        if now - next_frame_time > frame_duration:
+                            next_frame_time = now
+                        else:
+                            # Duplicate frame once to maintain CFR timeline sync when rendering falls behind
+                            writer.append_data(frame)
+                            next_frame_time += frame_duration
+                        
+            if writer:
+                writer.close()
+
+            if audio_recorder:
+                audio_data = audio_recorder.stop_and_get_audio()
+                mux_audio_into_video(self.output_path, audio_data, audio_recorder.samplerate)
+        except Exception as e:
+            import logging
+            logging.error(f"Error during video recording: {e}", exc_info=True)
+            if writer:
+                try:
+                    writer.close()
+                except Exception:
+                    pass
+        finally:
+            self.finished_signal.emit(self.output_path)
 
 
 class VideoCaptureManager(QObject):
@@ -230,7 +245,7 @@ class VideoCaptureManager(QObject):
         else:
             self.live_overlay = None
             
-        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        timestamp = time.strftime("%Y%m%d_%H%M%S") + f"_{int(time.time()*1000)%1000:03d}"
         self.output_path = os.path.join(self.library_dir, f"Video_{timestamp}.mp4")
         
         self.is_cancelled = False

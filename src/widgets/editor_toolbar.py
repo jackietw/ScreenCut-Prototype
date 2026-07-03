@@ -7,10 +7,11 @@ from PySide6.QtWidgets import QToolBar, QToolButton, QButtonGroup
 from PySide6.QtCore import Qt, Signal
 from resources.icon_utils import (create_svg_icon, SVG_SELECT, SVG_ARROW, SVG_TEXT, 
                          SVG_SHAPE, SVG_STAMP, SVG_CROP, SVG_BLUR, SVG_PEN, 
-                         SVG_STEP, SVG_UNDO, SVG_REDO, SVG_COPY, SVG_SAVE)
+                         SVG_STEP, SVG_UNDO, SVG_REDO, SVG_COPY, SVG_SAVE, SVG_TAB_IMAGE)
 
 
 class EditorToolBar(QToolBar):
+    capture_clicked = Signal()
     tool_selected = Signal(str)
     undo_clicked = Signal()
     redo_clicked = Signal()
@@ -26,11 +27,22 @@ class EditorToolBar(QToolBar):
         self.tool_group.setExclusive(True)
         self.tool_buttons = {}
         
+        self._setup_capture_button()
+        self.addSeparator()
         self._setup_tools()
         self.addSeparator()
         self._setup_history_buttons()
         self.addSeparator()
         self._setup_action_buttons()
+
+    def _setup_capture_button(self):
+        self.btn_capture = QToolButton()
+        self.btn_capture.setText("Capture")
+        self.btn_capture.setIcon(create_svg_icon(SVG_TAB_IMAGE, 24, 24))
+        self.btn_capture.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        self.btn_capture.setToolTip("Start a new screen capture")
+        self.btn_capture.clicked.connect(self.capture_clicked.emit)
+        self.addWidget(self.btn_capture)
 
     def _setup_tools(self):
         tools = [
