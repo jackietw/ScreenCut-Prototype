@@ -194,3 +194,60 @@ class MacOSPlatform(PlatformBase):
         except Exception as e:
             logging.debug("get_left_button_down failed on macOS: %s", e, exc_info=True)
             return False
+
+    # --- Executable / Bundle Icon Updating ---
+    @staticmethod
+    def update_app_icon(target_path: str, icon_path: str) -> bool:
+        import os
+        import shutil
+
+        if not os.path.exists(target_path):
+            print(f"Error: Target bundle not found at {target_path}")
+            return False
+        if not os.path.exists(icon_path):
+            print(f"Error: Icon file not found at {icon_path}")
+            return False
+
+        print(f"Detected macOS Application Bundle: {target_path}")
+        resources_dir = os.path.join(target_path, "Contents", "Resources")
+        if not os.path.exists(resources_dir):
+            print(f"Error: Resources directory not found in {target_path}")
+            return False
+        
+        icns_files = [f for f in os.listdir(resources_dir) if f.endswith(".icns")]
+        target_icns_name = icns_files[0] if icns_files else "Icons.icns"
+        target_icns_path = os.path.join(resources_dir, target_icns_name)
+
+        print(f"Updating macOS bundle icon at {target_icns_path} using {icon_path}...")
+        
+        if icon_path.endswith(".icns"):
+            shutil.copyfile(icon_path, target_icns_path)
+            print(f"Successfully copied ICNS to {target_icns_path}!")
+            return True
+
+        try:
+            import tempfile
+            import subprocess
+            with tempfile.TemporaryDirectory() as tmpdir:
+                iconset_dir = os.path.join(tmpdir, "icon.iconset")
+                os.makedirs(iconset_dir, exist_ok=True)
+                for size, name in [(16, "16x16"), (32, "16x16@2x"), (32, "32x32"), (64, "32x32@2x"), (128, "128x128"), (256, "128x128@2x"), (256, "256x256"), (512, "256x256@2x"), (512, "512x512"), (1024, "512x512@2x")]:
+                    out_png = os.path.join(iconset_dir, f"icon_{name}.png")
+                    subprocess.run(["sips", "-z", str(size), str(size), icon_path, "--out", out_png], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                res = subprocess.run(["iconutil", "-c", "icns", iconset_dir, "-o", target_icns_path])
+                if res.returncode == 0 and os.path.exists(target_icns_path):
+                    print(f"Successfully updated macOS bundle icon using iconutil at {target_icns_path}!")
+                    return True
+        except Exception as e_mac:
+            print(f"macOS native iconutil failed: {e_mac}")
+
+        try:
+            from PySide6.QtGui import QPixmap
+            pix = QPixmap(icon_path)
+            if not pix.isNull():
+                pix.save(target_icns_path, "ICNS")
+                print(f"Successfully updated macOS bundle icon using PySide6 at {target_icns_path}!")
+                return True
+        except Exception as e:
+            print(f"PySide6 ICNS save failed: {e}")
+        return False

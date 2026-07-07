@@ -123,11 +123,24 @@ def export_app_icons(target_dir: str):
         pixmap.save(os.path.join(target_dir, f"{name}.png"), "PNG")
         pixmap.save(os.path.join(target_dir, f"{name}.ico"), "ICO")
 
+def update_exe_icon(target_path: str, icon_path: str) -> bool:
+    import sys
+    import os
+    src_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    if src_dir not in sys.path:
+        sys.path.insert(0, src_dir)
+    from platforms import Platform
+    return Platform.update_app_icon(target_path, icon_path)
+
 if __name__ == "__main__":
     import sys
     import os
-    from PySide6.QtWidgets import QApplication
-    app = QApplication(sys.argv)
-    target = os.path.join(os.path.dirname(__file__), "icons")
-    export_app_icons(target)
-    print(f"Exported icons to {target}")
+    if len(sys.argv) >= 3:
+        success = update_exe_icon(sys.argv[1], sys.argv[2])
+        sys.exit(0 if success else 1)
+    else:
+        from PySide6.QtWidgets import QApplication
+        app = QApplication(sys.argv)
+        target = os.path.join(os.path.dirname(__file__), "icons")
+        export_app_icons(target)
+        print(f"Exported icons to {target}")

@@ -57,11 +57,13 @@ def main():
     from config import setup_logging
     setup_logging()   # Must be first - configures logging for the whole app
     sys.excepthook = global_exception_handler
-    is_editor_mode = "--editor" in sys.argv or (len(sys.argv) > 1 and sys.argv[1].lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.scut')))
+    is_editor_mode = "--editor" in sys.argv or "editor" in sys.argv[0].lower() or (len(sys.argv) > 1 and sys.argv[1].lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.scut')))
     if sys.platform == 'win32':
         import ctypes
         app_id = 'screencut.editor.app.v1' if is_editor_mode else 'screencut.capture.app.v1'
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(app_id)
+    from platforms import Platform
+    Platform.init_dpi_awareness()
     app = ScreenCut(sys.argv)
     app.setStyleSheet("QToolTip { background-color: #1e293b; color: #f8fafc; border: 1px solid #475569; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }")
     

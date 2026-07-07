@@ -90,6 +90,7 @@ class VideoToolbar(QWidget):
     audio_toggled = Signal(bool)
     sys_audio_toggled = Signal(bool)
     cursor_toggled = Signal(bool)
+    cursor_settings_changed = Signal(bool, bool)
 
     PRE_RECORD = 0
     RECORDING = 1
@@ -310,6 +311,8 @@ class VideoToolbar(QWidget):
         cfg["cursor_settings"]["highlight"] = self.act_hl.isChecked()
         cfg["cursor_settings"]["click"] = self.act_anim.isChecked()
         save_config(cfg)
+        
+        self.cursor_settings_changed.emit(self.act_hl.isChecked(), self.act_anim.isChecked())
         
         if hasattr(self.parent(), "ready_panel") and self.parent().ready_panel:
             self.parent().ready_panel.update_cursor_status(self.btn_cursor.isChecked())

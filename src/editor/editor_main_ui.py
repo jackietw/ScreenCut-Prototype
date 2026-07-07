@@ -43,6 +43,14 @@ class ImageEditorUI(QMainWindow):
             QToolButton:checked { background: #246bb2; color: white; }
             QToolButton:disabled { color: #666666; }
             QScrollArea { background-color: #141414; border: none; }
+            QScrollBar:horizontal { height: 10px; background: #141414; margin: 0px; }
+            QScrollBar::handle:horizontal { background: #475569; min-width: 24px; border-radius: 5px; margin: 1px; }
+            QScrollBar::handle:horizontal:hover { background: #64748b; }
+            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0px; }
+            QScrollBar:vertical { width: 10px; background: #141414; margin: 0px; }
+            QScrollBar::handle:vertical { background: #475569; min-height: 24px; border-radius: 5px; margin: 1px; }
+            QScrollBar::handle:vertical:hover { background: #64748b; }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0px; }
         """)
         
         self.current_image_path = current_filepath
@@ -55,6 +63,8 @@ class ImageEditorUI(QMainWindow):
         self.scroll_area.setWidget(self.canvas)
         self.scroll_area.setWidgetResizable(False)
         self.scroll_area.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.setCentralWidget(self.scroll_area)
         
         # Right Dock Panel

@@ -354,6 +354,9 @@ class ImageCanvas(QWidget):
         w = int(self.base_image.width() * self.zoom_factor)
         h = int(self.base_image.height() * self.zoom_factor)
         self.setFixedSize(w, h)
+        self.updateGeometry()
+        if self.parentWidget() and isinstance(self.parentWidget().parentWidget(), QScrollArea):
+            self.parentWidget().parentWidget().updateGeometry()
 
     def reset_step(self):
         self.step_counter = 1
@@ -479,6 +482,7 @@ class ImageCanvas(QWidget):
 
         w, h = calculate_temporary_size(self.base_image.width(), self.base_image.height(), self.annotations, self.is_drawing, getattr(self, 'end_pos', None))
         self.setFixedSize(int(w * self.zoom_factor), int(h * self.zoom_factor))
+        self.updateGeometry()
 
     def get_canvas_handle_at(self, pt: QPoint):
         W = self.base_image.width()

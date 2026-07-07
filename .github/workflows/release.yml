@@ -68,7 +68,7 @@ jobs:
           pip install -r requirements.txt
           pip install zstandard ordered-set
 
-      - name: Build Capture Tray with Nuitka (Windows)
+      - name: Build ScreenCut with Nuitka (Windows)
         if: runner.os == 'Windows'
         uses: Nuitka/Nuitka-Action@main
         with:
@@ -78,27 +78,15 @@ jobs:
           enable-plugins: pyside6
           windows-console-mode: disable
           windows-icon-from-ico: src/resources/icons/cap.ico
+          include-package: imageio,imageio_ffmpeg,soundcard,soundfile,sounddevice,cv2
+          include-package-data: soundcard,imageio,imageio_ffmpeg
+          include-data-dir: src/resources=resources
           company-name: Jackie
           product-name: ScreenCut
           file-version: ${{ steps.ver.outputs.version }}
           output-dir: build
 
-      - name: Build Editor with Nuitka (Windows)
-        if: runner.os == 'Windows'
-        uses: Nuitka/Nuitka-Action@main
-        with:
-          nuitka-version: main
-          script-name: src/editor/editor_main.py
-          mode: standalone
-          enable-plugins: pyside6
-          windows-console-mode: disable
-          windows-icon-from-ico: src/resources/icons/cap.ico
-          company-name: Jackie
-          product-name: ScreenCutEditor
-          file-version: ${{ steps.ver.outputs.version }}
-          output-dir: build
-
-      - name: Build Capture Tray with Nuitka (macOS)
+      - name: Build ScreenCut with Nuitka (macOS)
         if: runner.os == 'macOS'
         uses: Nuitka/Nuitka-Action@main
         with:
@@ -108,19 +96,9 @@ jobs:
           enable-plugins: pyside6
           macos-app-console-mode: disable
           macos-app-icon: src/resources/icons/cap.png
-          macos-app-version: ${{ steps.ver.outputs.mac_version }}
-          output-dir: build
-
-      - name: Build Editor with Nuitka (macOS)
-        if: runner.os == 'macOS'
-        uses: Nuitka/Nuitka-Action@main
-        with:
-          nuitka-version: main
-          script-name: src/editor/editor_main.py
-          mode: app
-          enable-plugins: pyside6
-          macos-app-console-mode: disable
-          macos-app-icon: src/resources/icons/cap.png
+          include-package: imageio,imageio_ffmpeg,soundcard,soundfile,sounddevice,cv2
+          include-package-data: soundcard,imageio,imageio_ffmpeg
+          include-data-dir: src/resources=resources
           macos-app-version: ${{ steps.ver.outputs.mac_version }}
           output-dir: build
 
@@ -128,14 +106,9 @@ jobs:
         if: runner.os == 'Windows'
         shell: powershell
         run: |
-          # Merge editor_main.exe and any unique libraries into screencut.dist
-          Copy-Item -Path "build\editor_main.dist\*" -Destination "build\screencut.dist\" -Recurse -Force
-          if (Test-Path "build\screencut.dist\editor_main.exe") {
-            Rename-Item -Path "build\screencut.dist\editor_main.exe" -NewName "ScreenCutEditor.exe"
-          } else {
-            Write-Error "ERROR: editor_main.exe not found in build\screencut.dist!"
-            exit 1
-          }
+          # Create Editor.exe by copying screencut.exe (shares all runtime cleanly)
+          Copy-Item -Path "build\screencut.dist\screencut.exe" -Destination "build\screencut.dist\Editor.exe" -Force
+          python src/resources/icon_utils.py "build\screencut.dist\Editor.exe" "src/resources/icons/editor.ico"
 
           # Find pre-installed WiX Toolset on GitHub Actions runner
           $wixBin = Get-ChildItem -Path "C:\Program Files (x86)\WiX Toolset*" | Select-Object -First 1
@@ -152,6 +125,8 @@ jobs:
               <Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine" />
               <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
               <MediaTemplate EmbedCab="yes" />
+              <Icon Id="CaptureIcon.ico" SourceFile="build\screencut.dist\resources\icons\cap.ico" />
+              <Icon Id="EditorIcon.ico" SourceFile="build\screencut.dist\resources\icons\editor.ico" />
               <Feature Id="ProductFeature" Title="ScreenCut" Level="1">
                 <ComponentGroupRef Id="AppComponents" />
                 <ComponentRef Id="ApplicationShortcut" />
@@ -172,8 +147,8 @@ jobs:
             <Fragment>
               <DirectoryRef Id="ApplicationProgramsFolder">
                 <Component Id="ApplicationShortcut" Guid="e1c8498f-5188-4c16-83eb-5dfa40237c04">
-                  <Shortcut Id="ApplicationStartMenuShortcut" Name="ScreenCut" Description="ScreenCut Capture Tray" Target="[INSTALLFOLDER]screencut.exe" WorkingDirectory="INSTALLFOLDER" />
-                  <Shortcut Id="EditorStartMenuShortcut" Name="ScreenCut Editor" Description="ScreenCut Editor" Target="[INSTALLFOLDER]ScreenCutEditor.exe" WorkingDirectory="INSTALLFOLDER" />
+                  <Shortcut Id="ApplicationStartMenuShortcut" Name="ScreenCut" Description="ScreenCut Capture Tray" Target="[INSTALLFOLDER]screencut.exe" WorkingDirectory="INSTALLFOLDER" Icon="CaptureIcon.ico" />
+                  <Shortcut Id="EditorStartMenuShortcut" Name="ScreenCut Editor" Description="ScreenCut Editor" Target="[INSTALLFOLDER]Editor.exe" WorkingDirectory="INSTALLFOLDER" Icon="EditorIcon.ico" />
                   <RemoveFolder Id="CleanUpShortCut" Directory="ApplicationProgramsFolder" On="uninstall" />
                   <RegistryValue Root="HKCU" Key="Software\Jackie\ScreenCut" Name="installed" Type="integer" Value="1" KeyPath="yes" />
                 </Component>
@@ -182,8 +157,8 @@ jobs:
             <Fragment>
               <DirectoryRef Id="DesktopFolder">
                 <Component Id="DesktopShortcut" Guid="f2d95a90-6299-4d27-94fa-6eab51348d15">
-                  <Shortcut Id="ApplicationDesktopShortcut" Name="ScreenCut" Description="ScreenCut Capture Tray" Target="[INSTALLFOLDER]screencut.exe" WorkingDirectory="INSTALLFOLDER" />
-                  <Shortcut Id="EditorDesktopShortcut" Name="ScreenCut Editor" Description="ScreenCut Editor" Target="[INSTALLFOLDER]ScreenCutEditor.exe" WorkingDirectory="INSTALLFOLDER" />
+                  <Shortcut Id="ApplicationDesktopShortcut" Name="ScreenCut" Description="ScreenCut Capture Tray" Target="[INSTALLFOLDER]screencut.exe" WorkingDirectory="INSTALLFOLDER" Icon="CaptureIcon.ico" />
+                  <Shortcut Id="EditorDesktopShortcut" Name="ScreenCut Editor" Description="ScreenCut Editor" Target="[INSTALLFOLDER]Editor.exe" WorkingDirectory="INSTALLFOLDER" Icon="EditorIcon.ico" />
                   <RegistryValue Root="HKCU" Key="Software\Jackie\ScreenCut" Name="desktop_installed" Type="integer" Value="1" KeyPath="yes" />
                 </Component>
               </DirectoryRef>
@@ -195,6 +170,7 @@ jobs:
           # Compile and link MSI
           candle.exe -dSourceDir="build\screencut.dist" main.wxs components.wxs
           light.exe -out ${{ matrix.artifact_name }} main.wixobj components.wixobj -b "build\screencut.dist" -sval
+          Remove-Item -Path "*.wixpdb" -ErrorAction SilentlyContinue
 
           # Also create Portable Green Zip version
           $zipName = "${{ matrix.artifact_name }}".Replace(".msi", ".zip")
@@ -205,7 +181,8 @@ jobs:
         run: |
           mkdir -p build/dmg_stage
           mv build/screencut.app build/dmg_stage/ScreenCut.app
-          mv build/editor_main.app build/dmg_stage/ScreenCutEditor.app
+          cp -R build/dmg_stage/ScreenCut.app build/dmg_stage/Editor.app
+          python src/resources/icon_utils.py "build/dmg_stage/Editor.app" "src/resources/icons/editor.png"
           npm install --global create-dmg
           create-dmg build/dmg_stage ${{ matrix.artifact_name }} || true
           if [ ! -f ${{ matrix.artifact_name }} ]; then
@@ -217,7 +194,9 @@ jobs:
         with:
           name: ${{ matrix.name }}
           path: |
-            ScreenCut-*.*
+            ScreenCut-*.msi
+            ScreenCut-*.zip
+            ScreenCut-*.dmg
           if-no-files-found: error
 
   release:
@@ -261,3 +240,10 @@ jobs:
           files: |
             dist/*/*
             hashes.sha256
+
+      - name: Publish to Winget
+        uses: vedantmgoyal2009/winget-releaser@v2
+        with:
+          identifier: Jackie.ScreenCut
+          installers-regex: '\.msi$'
+          token: ${{ secrets.WINGET_TOKEN }}

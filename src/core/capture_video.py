@@ -10,6 +10,10 @@ import threading
 import numpy as np
 import mss
 import imageio
+try:
+    import imageio.plugins.ffmpeg
+except Exception:
+    pass
 import cv2
 from platforms import Platform
 from PySide6.QtCore import QThread, Signal, QObject, QTimer
@@ -58,8 +62,8 @@ class VideoCaptureThread(QThread):
         
         config_data = load_config()
         self.cursor_settings = config_data.get("cursor_settings", {})
-        self.hl_enabled = self.cursor_settings.get("highlight", False)
-        self.cl_enabled = self.cursor_settings.get("click", False)
+        self.hl_enabled = self.cursor_settings.get("highlight", True)
+        self.cl_enabled = self.cursor_settings.get("click", True)
         self.limit_1080p = config_data.get("limit_1080p", True)
         
         def hex_to_rgb(hex_str):
@@ -231,8 +235,8 @@ class VideoCaptureManager(QObject):
         self.capture_cursor = toggles.get("Capture Cursor (Video)", False)
         
         self.cursor_settings = config_data.get("cursor_settings", {})
-        self.hl_enabled = self.cursor_settings.get("highlight", False)
-        self.cl_enabled = self.cursor_settings.get("click", False)
+        self.hl_enabled = self.cursor_settings.get("highlight", True)
+        self.cl_enabled = self.cursor_settings.get("click", True)
         
         if override_settings:
             self.capture_cursor = override_settings.get("capture_cursor", self.capture_cursor)
@@ -241,15 +245,14 @@ class VideoCaptureManager(QObject):
             if not override_settings.get("audio", True):
                 self.audio_device = "None (Muted)"
         
-        if self.hl_enabled or self.cl_enabled:
-            from widgets.capture_cursor import CursorOverlay
-            hl_color = self.cursor_settings.get("highlight_color", "#ffff00")
-            cl_color = self.cursor_settings.get("click_color", "#ff0000")
-            self.live_overlay = CursorOverlay(self.hl_enabled, hl_color, self.cl_enabled, cl_color, capture_rect=self.logical_rect)
-            if self.capture_cursor:
-                self.live_overlay.show()
+        from widgets.capture_cursor import CursorOverlay
+        hl_color = self.cursor_settings.get("highlight_color", "#ffff00")
+        cl_color = self.cursor_settings.get("click_color", "#ff0000")
+        self.live_overlay = CursorOverlay(self.hl_enabled, hl_color, self.cl_enabled, cl_color, capture_rect=self.logical_rect)
+        if self.capture_cursor and (self.hl_enabled or self.cl_enabled):
+            self.live_overlay.show()
         else:
-            self.live_overlay = None
+            self.live_overlay.hide()
             
         timestamp = time.strftime("%Y%m%d_%H%M%S") + f"_{int(time.time()*1000)%1000:03d}"
         self.output_path = os.path.join(self.library_dir, f"Video_{timestamp}.mp4")
@@ -263,6 +266,7 @@ class VideoCaptureManager(QObject):
             self.toolbar.audio_toggled.connect(self.toggle_audio)
             self.toolbar.sys_audio_toggled.connect(self.toggle_sys_audio)
             self.toolbar.cursor_toggled.connect(self.toggle_cursor)
+            self.toolbar.cursor_settings_changed.connect(self.update_cursor_settings)
         else:
             self.toolbar = VideoToolbar()
             self.toolbar.stop_requested.connect(self.stop_capture)
@@ -270,6 +274,7 @@ class VideoCaptureManager(QObject):
             self.toolbar.audio_toggled.connect(self.toggle_audio)
             self.toolbar.sys_audio_toggled.connect(self.toggle_sys_audio)
             self.toolbar.cursor_toggled.connect(self.toggle_cursor)
+            self.toolbar.cursor_settings_changed.connect(self.update_cursor_settings)
             
             # Position toolbar if created newly
             if cw_x is not None and cw_y is not None:
@@ -331,7 +336,21 @@ class VideoCaptureManager(QObject):
         if hasattr(self, 'thread') and self.thread:
             self.thread.capture_cursor = show_cursor
         if hasattr(self, 'live_overlay') and self.live_overlay:
-            if show_cursor:
+            if show_cursor and (self.hl_enabled or self.cl_enabled):
+                self.live_overlay.show()
+            else:
+                self.live_overlay.hide()
+
+    def update_cursor_settings(self, hl_enabled, cl_enabled):
+        self.hl_enabled = hl_enabled
+        self.cl_enabled = cl_enabled
+        if hasattr(self, 'thread') and self.thread:
+            self.thread.hl_enabled = hl_enabled
+            self.thread.cl_enabled = cl_enabled
+        if hasattr(self, 'live_overlay') and self.live_overlay:
+            self.live_overlay.hl_enabled = hl_enabled
+            self.live_overlay.cl_enabled = cl_enabled
+            if self.capture_cursor and (hl_enabled or cl_enabled):
                 self.live_overlay.show()
             else:
                 self.live_overlay.hide()

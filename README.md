@@ -1,4 +1,4 @@
-# ScreenCut
+# ScreenCut (Archived)
 
 **English** | [中文](README_zh.md)
 
@@ -6,6 +6,12 @@
 [![Python Version](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![Framework: PySide6](https://img.shields.io/badge/GUI-PySide6%20(Qt6)-green.svg)](https://doc.qt.io/qtforpython/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS-lightgrey.svg)]
+
+> [!IMPORTANT]
+> **⚠️ Project Status: Python Prototype / Archived**
+> This repository represents the **Python / PySide6 Proof-of-Concept (PoC)** version of ScreenCut. It has been archived and is no longer under active development.
+>
+> To achieve **0ms instantaneous capture response** and **ultra-low memory footprint (~15MB)** without Python virtual machine overhead, ScreenCut is undergoing a complete native rewrite in **C++ / Qt 6 / Win32 Native**. The link to the new high-performance repository will be published here soon!
 
 **ScreenCut** is a lightweight, high-performance, cross-platform desktop screen capture and video recording utility. Powered by **Python** and **PySide6 (Qt6)**, it combines hardware-accelerated video encoding and dual-stream synchronized audio recording with a built-in non-destructive image editor, providing developers, professionals, and daily users with an all-in-one visual productivity suite.
 

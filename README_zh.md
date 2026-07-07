@@ -1,4 +1,4 @@
-# ScreenCut
+# ScreenCut (Archived)
 
 [English](README.md) | **中文**
 
@@ -6,6 +6,12 @@
 [![Python Version](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![Framework: PySide6](https://img.shields.io/badge/GUI-PySide6%20(Qt6)-green.svg)](https://doc.qt.io/qtforpython/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS-lightgrey.svg)]
+
+> [!IMPORTANT]
+> **⚠️ 【專案狀態公告：Python 概念驗證原型 / 已封存】**
+> 本專案庫為 ScreenCut 的 **Python / PySide6 概念驗證原型 (Proof-of-Concept, PoC)** 版本，現已停止開發並設為唯讀封存。
+>
+> 為了擺脫虛擬機運行時開銷，追求 **0 毫秒極速截圖快門反應** 與 **極致輕量記憶體佔用（約 15MB）**，ScreenCut 目前正進行全面性的 **C++ / Qt 6 / Win32 原生重構**。全新原生高效能版本的專案庫鏈結將於近期決定並公告於此，敬請期待！
 
 **ScreenCut** 是一款輕量、效能卓越且跨平台的桌面螢幕截圖與錄影工具。採用 **Python** 與 **PySide6 (Qt6)** 打造，結合硬體加速影像編碼與雙軌同步收音技術，並內建強大的非破壞性圖片標註編輯器，為開發者、工作專業人士與日常用戶提供一站式的畫面捕捉解決方案。
 

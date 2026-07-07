@@ -12,6 +12,12 @@ class PlatformBase:
         """Return the path to the user's Documents folder."""
         raise NotImplementedError
 
+    # --- DPI Awareness ---
+    @staticmethod
+    def init_dpi_awareness() -> None:
+        """Initialize high-DPI awareness for the process before application startup."""
+        pass
+
     # --- Screen Capture Exclusion ---
     @staticmethod
     def set_window_capture_excluded(hwnd: int) -> None:
@@ -66,4 +72,10 @@ class PlatformBase:
     @staticmethod
     def get_left_button_down() -> bool:
         """Return True if the left mouse button is currently held down."""
+        raise NotImplementedError
+
+    # --- Executable / Bundle Icon Updating ---
+    @staticmethod
+    def update_app_icon(target_path: str, icon_path: str) -> bool:
+        """Update the embedded application icon of an executable or app bundle."""
         raise NotImplementedError

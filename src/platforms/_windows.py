@@ -27,6 +27,24 @@ MOD_WIN     = 0x0008
 
 class WindowsPlatform(PlatformBase):
 
+    # --- DPI Awareness ---
+    @staticmethod
+    def init_dpi_awareness() -> None:
+        try:
+            # -4 = DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 (Windows 10 1607+)
+            ctypes.windll.user32.SetProcessDpiAwarenessContext(-4)
+        except Exception as e:
+            logging.debug("SetProcessDpiAwarenessContext(-4) failed: %s", e)
+            try:
+                # 2 = PROCESS_PER_MONITOR_DPI_AWARE (Windows 8.1+)
+                ctypes.windll.shcore.SetProcessDpiAwareness(2)
+            except Exception as e2:
+                logging.debug("SetProcessDpiAwareness(2) failed: %s", e2)
+                try:
+                    ctypes.windll.user32.SetProcessDPIAware()
+                except Exception as e3:
+                    logging.debug("SetProcessDPIAware() failed: %s", e3)
+
     # --- Documents Folder ---
     @staticmethod
     def get_documents_folder() -> str:
@@ -144,3 +162,83 @@ class WindowsPlatform(PlatformBase):
         except Exception as e:
             logging.debug("GetAsyncKeyState failed: %s", e, exc_info=True)
             return False
+
+    # --- Executable / Bundle Icon Updating ---
+    @staticmethod
+    def update_app_icon(target_path: str, icon_path: str) -> bool:
+        import os
+        import time
+        from nuitka.PostProcessing import (
+            IconDirectoryHeader,
+            IconDirectoryEntry,
+            IconGroupDirectoryEntry,
+            readFromFile,
+        )
+        from nuitka.utils.WindowsResources import (
+            _openFileWindowsResources,
+            _closeFileWindowsResources,
+            _updateWindowsResource,
+            convertStructureToBytes,
+            RT_GROUP_ICON,
+            RT_ICON,
+        )
+
+        if not os.path.exists(target_path):
+            print(f"Error: Target exe not found at {target_path}")
+            return False
+        if not os.path.exists(icon_path):
+            print(f"Error: Icon file not found at {icon_path}")
+            return False
+
+        print(f"Reading icon data from {icon_path}...")
+        icon_group = 1
+        image_id = 1
+        images = []
+
+        with open(icon_path, "rb") as icon_file:
+            header = readFromFile(icon_file, IconDirectoryHeader)
+            icons_entries = [
+                readFromFile(icon_file, IconDirectoryEntry)
+                for _ in range(header.count)
+            ]
+            for icon in icons_entries:
+                icon_file.seek(icon.image_offset, 0)
+                images.append(icon_file.read(icon.image_size))
+
+        parts = [convertStructureToBytes(header)]
+        for icon in icons_entries:
+            parts.append(
+                convertStructureToBytes(
+                    IconGroupDirectoryEntry(
+                        width=icon.width,
+                        height=icon.height,
+                        colors=icon.colors,
+                        reserved=icon.reserved,
+                        planes=icon.planes,
+                        bit_count=icon.bit_count,
+                        image_size=icon.image_size,
+                        id=image_id,
+                    )
+                )
+            )
+            image_id += 1
+
+        group_data = b"".join(parts)
+
+        print(f"Overwriting icon resources in {target_path} with {len(images)} icons...")
+        max_retries = 10
+        for attempt in range(1, max_retries + 1):
+            try:
+                update_handle = _openFileWindowsResources(target_path)
+                _updateWindowsResource(update_handle, RT_GROUP_ICON, icon_group, 0, group_data)
+                for count, image in enumerate(images, 1):
+                    _updateWindowsResource(update_handle, RT_ICON, count, 0, image)
+                _closeFileWindowsResources(update_handle)
+                print(f"Successfully updated embedded PE icon of {target_path} to {icon_path}!")
+                return True
+            except Exception as e:
+                print(f"Attempt {attempt} failed with error ({e}). Retrying in 1 second...")
+                time.sleep(1)
+
+        print(f"Failed to update icon of {target_path} after {max_retries} attempts.")
+        return False
